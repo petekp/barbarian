@@ -35,6 +35,7 @@ final class AppController: NSObject, NSApplicationDelegate {
             MainActor.assumeIsolated { self?.clickedOutsideBarbarian() }
         }
         registerHotKeys()
+        LaunchAtLogin.enableOnFirstLaunch()
         commandObserver = CommandChannel.listen { [weak self] in self?.perform($0) }
     }
 

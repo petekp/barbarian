@@ -8,6 +8,10 @@ if arguments.contains("--print-items") {
     exit(0)
 }
 
+if arguments.contains("--render-app-icon") {
+    exit(AppIconRenderer.run(arguments: arguments))
+}
+
 if arguments.contains("--render-arrange") {
     exit(ArrangeSnapshot.run(arguments: arguments))
 }

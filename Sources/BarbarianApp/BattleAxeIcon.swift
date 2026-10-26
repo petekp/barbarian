@@ -1,18 +1,19 @@
 import AppKit
 
-/// Barbarian's menu bar icon: a double-bladed battle axe with a spike on top,
-/// tilted to lean right. SF Symbols has no axe, so the icon is drawn here.
+/// Barbarian's axe: a double-bladed battle axe with a spike on top, tilted
+/// to lean right. It is the menu bar icon and the mark on the app icon. SF
+/// Symbols has no axe, so it is drawn here.
 enum BattleAxeIcon {
+    /// The square the axe is designed in. Every length below is in it.
     private static let side: CGFloat = 18
-    /// The axe's longest extent. Smaller than the image, because an axe
-    /// filling the square looks heavier than the system icons beside it.
-    private static let axeSize: CGFloat = 15
     private static let tilt: CGFloat = -40
 
+    /// The menu bar image. The axe spans 15 of its 18 points, because an axe
+    /// filling the square looks heavier than the system icons beside it.
     static func image() -> NSImage {
         let image = NSImage(size: NSSize(width: side, height: side), flipped: false) { _ in
             NSColor.black.setFill()
-            for part in parts() { part.fill() }
+            for part in parts(centeredAt: NSPoint(x: side / 2, y: side / 2), size: 15) { part.fill() }
             return true
         }
         image.isTemplate = true
@@ -20,8 +21,9 @@ enum BattleAxeIcon {
         return image
     }
 
-    /// The axe's parts, upright in an 18-point square and then tilted.
-    private static func parts() -> [NSBezierPath] {
+    /// The axe's parts, tilted, spanning `size` at its longest and centered
+    /// on `center`.
+    static func parts(centeredAt center: NSPoint, size: CGFloat) -> [NSBezierPath] {
         let centerX = side / 2
         let handleWidth: CGFloat = 1.9
         let handle = NSBezierPath(
@@ -36,24 +38,19 @@ enum BattleAxeIcon {
         spike.line(to: NSPoint(x: centerX + 1.1, y: 17.4))
         spike.close()
 
-        var transform = AffineTransform(translationByX: side / 2, byY: side / 2)
-        transform.rotate(byDegrees: tilt)
-        transform.translate(x: -side / 2, y: -side / 2)
+        var tiltTransform = AffineTransform(translationByX: side / 2, byY: side / 2)
+        tiltTransform.rotate(byDegrees: tilt)
+        tiltTransform.translate(x: -side / 2, y: -side / 2)
 
         let parts = [handle, spike, blade(facing: -1), blade(facing: 1)]
-        for part in parts { part.transform(using: transform) }
-        fitInSquare(parts)
-        return parts
-    }
+        for part in parts { part.transform(using: tiltTransform) }
 
-    /// Scales and centers `parts` so the tilted axe spans `axeSize`.
-    private static func fitInSquare(_ parts: [NSBezierPath]) {
         let bounds = parts.map(\.bounds).reduce(NSRect.null) { $0.union($1) }
-        let scale = axeSize / max(bounds.width, bounds.height)
-        var transform = AffineTransform(translationByX: side / 2, byY: side / 2)
-        transform.scale(scale)
-        transform.translate(x: -bounds.midX, y: -bounds.midY)
-        for part in parts { part.transform(using: transform) }
+        var fitTransform = AffineTransform(translationByX: center.x, byY: center.y)
+        fitTransform.scale(size / max(bounds.width, bounds.height))
+        fitTransform.translate(x: -bounds.midX, y: -bounds.midY)
+        for part in parts { part.transform(using: fitTransform) }
+        return parts
     }
 
     /// A crescent blade on the left (`direction` -1) or right (1) of the handle.

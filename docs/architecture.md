@@ -39,6 +39,10 @@ Barbarian is a Swift package with three targets. The app is a menu bar agent wit
 
 While you drag, the item follows the pointer and the others spring aside to open a gap at the drop target. On drop, `MenuBarLayout.destination(inserting:into:at:unreliableNeighbors:)` picks the move. It aims past items their app is not drawing, whose frames are stale. The window keeps showing the dropped order until the menu bar reports it, for up to 2 seconds, so the item does not jump back while the move runs. Items not in the menu bar cannot be dragged. Each dimmed item says why: "Not showing" when its app is not drawing it, "Doesn't fit" otherwise. While the window is open every section is revealed and stays revealed.
 
+**Launch at login.** `LaunchAtLogin` registers the app with `SMAppService`. Barbarian turns it on the first time it runs, because after a restart without it every item shows until Barbarian is opened. The items menu's Open at Login turns it off, and that sticks.
+
+**The icons.** `BattleAxeIcon` draws the axe in code, since SF Symbols has no axe. The menu bar icon is the axe as a template image. `AppIconRenderer` draws the app icon from the same axe, and `scripts/make-app-icon.sh` saves it as `Resources/AppIcon.icns`, which `scripts/build-app.sh` copies into the app.
+
 **Commands.** `Barbarian --command <name>` posts a distributed notification that the running app handles. Scripts and agents use it to drive the app without clicking.
 
 ## macOS behavior the code relies on

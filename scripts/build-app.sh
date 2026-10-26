@@ -21,9 +21,10 @@ bin_path=$(swift build --package-path "$repo" -c "$configuration" --show-bin-pat
 
 bundle="$repo/.build/Barbarian.app"
 rm -rf "$bundle"
-mkdir -p "$bundle/Contents/MacOS"
+mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources"
 cp "$bin_path/Barbarian" "$bundle/Contents/MacOS/Barbarian"
 cp "$repo/Resources/Info.plist" "$bundle/Contents/Info.plist"
+cp "$repo/Resources/AppIcon.icns" "$bundle/Contents/Resources/AppIcon.icns"
 codesign --force --sign "$identity" "$bundle"
 
 installed="$HOME/Applications/Barbarian.app"
