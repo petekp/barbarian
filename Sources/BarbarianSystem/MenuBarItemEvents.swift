@@ -37,9 +37,9 @@ public enum MenuBarItemEvents {
 
         try await withCursorParked {
             for attempt in 1...maximumAttempts {
-                post(mouseEvent(.leftMouseDown, at: offscreenStart, window: item, pid: ownerPID, flags: .maskCommand), to: ownerPID)
+                postToSessionAndOwner(mouseEvent(.leftMouseDown, at: offscreenStart, window: item, pid: ownerPID, flags: .maskCommand), ownerPID: ownerPID)
                 try await Task.sleep(for: eventGap)
-                post(mouseEvent(.leftMouseUp, at: endPoint, window: targetID, pid: ownerPID, flags: []), to: ownerPID)
+                postToSessionAndOwner(mouseEvent(.leftMouseUp, at: endPoint, window: targetID, pid: ownerPID, flags: []), ownerPID: ownerPID)
                 if await waitForFrameChange(of: item, from: startFrame) { return }
                 if attempt == maximumAttempts { throw MenuBarItemEventError.moveDidNotLand(item) }
             }
@@ -52,9 +52,9 @@ public enum MenuBarItemEvents {
         guard let frame = MenuBarWindowList.frame(of: item) else { throw MenuBarItemEventError.itemGone(item) }
         let point = CGPoint(x: frame.midX, y: frame.midY)
         try await withCursorParked {
-            post(mouseEvent(.leftMouseDown, at: point, window: item, pid: ownerPID, flags: [], clickState: 1), to: ownerPID)
+            mouseEvent(.leftMouseDown, at: point, window: item, pid: ownerPID, flags: [], clickState: 1)?.post(tap: .cgSessionEventTap)
             try await Task.sleep(for: eventGap)
-            post(mouseEvent(.leftMouseUp, at: point, window: item, pid: ownerPID, flags: [], clickState: 1), to: ownerPID)
+            mouseEvent(.leftMouseUp, at: point, window: item, pid: ownerPID, flags: [], clickState: 1)?.post(tap: .cgSessionEventTap)
         }
     }
 
@@ -98,7 +98,9 @@ public enum MenuBarItemEvents {
         return event
     }
 
-    private static func post(_ event: CGEvent?, to pid: Int32) {
+    /// Moves are delivered to both the session and the owning app, as Ice
+    /// does. Clicks go to the session only, so the item sees one click.
+    private static func postToSessionAndOwner(_ event: CGEvent?, ownerPID pid: Int32) {
         guard let event else { return }
         event.post(tap: .cgSessionEventTap)
         event.postToPid(pid)

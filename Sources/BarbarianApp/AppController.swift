@@ -164,25 +164,30 @@ final class AppController: NSObject, NSApplicationDelegate {
         guard
             let layout = currentLayout(),
             let dividerID = layout.windowID(of: .hidden),
-            let frame = MenuBarWindowList.frame(of: dividerID),
-            let screen = NSScreen.main
+            let frame = MenuBarWindowList.frame(of: dividerID)
         else {
             return nil
         }
-        let visible = frame.intersection(CGRect(x: 0, y: 0, width: screen.frame.width, height: frame.height))
+        let statusArea = Self.visibleStatusArea()
+        let statusAreaRect = CGRect(x: statusArea.lowerBound, y: 0, width: statusArea.upperBound - statusArea.lowerBound, height: frame.height)
+        let visible = frame.intersection(statusAreaRect)
         return visible.isEmpty ? nil : visible
     }
 
-    /// The x range where status items can appear on the main display: right
-    /// of the notch when there is one.
+    /// The display whose top-left corner is the origin of window-list
+    /// coordinates. `NSScreen.main` is the display with keyboard focus instead.
+    static var primaryScreen: NSScreen? { NSScreen.screens.first }
+
+    /// The x range where status items can appear on the primary display:
+    /// right of the notch when there is one.
     static func visibleStatusArea() -> ClosedRange<CGFloat> {
-        guard let screen = NSScreen.main else { return 0...0 }
+        guard let screen = primaryScreen else { return 0...0 }
         let leftEdge = screen.auxiliaryTopRightArea?.minX ?? 0
         return leftEdge...screen.frame.width
     }
 
     static func isPointerInMenuBar() -> Bool {
-        guard let screen = NSScreen.main else { return false }
+        guard let screen = primaryScreen else { return false }
         let pointer = NSEvent.mouseLocation
         let menuBarHeight = screen.frame.maxY - screen.visibleFrame.maxY
         return screen.frame.contains(pointer) && pointer.y >= screen.frame.maxY - max(menuBarHeight, 24)
