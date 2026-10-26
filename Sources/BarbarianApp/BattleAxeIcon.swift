@@ -4,6 +4,9 @@ import AppKit
 /// tilted to lean right. SF Symbols has no axe, so the icon is drawn here.
 enum BattleAxeIcon {
     private static let side: CGFloat = 18
+    /// The axe's longest extent. Smaller than the image, because an axe
+    /// filling the square looks heavier than the system icons beside it.
+    private static let axeSize: CGFloat = 15
     private static let tilt: CGFloat = -40
 
     static func image() -> NSImage {
@@ -43,10 +46,10 @@ enum BattleAxeIcon {
         return parts
     }
 
-    /// Scales and centers `parts` so the tilted axe fits inside the image.
+    /// Scales and centers `parts` so the tilted axe spans `axeSize`.
     private static func fitInSquare(_ parts: [NSBezierPath]) {
         let bounds = parts.map(\.bounds).reduce(NSRect.null) { $0.union($1) }
-        let scale = side / max(bounds.width, bounds.height)
+        let scale = axeSize / max(bounds.width, bounds.height)
         var transform = AffineTransform(translationByX: side / 2, byY: side / 2)
         transform.scale(scale)
         transform.translate(x: -bounds.midX, y: -bounds.midY)
