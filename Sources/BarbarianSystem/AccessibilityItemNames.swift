@@ -5,14 +5,18 @@ import BarbarianCore
 /// them even when window titles are withheld. Control Center owns many items,
 /// and this is how Barbarian tells Wi-Fi from Focus without Screen Recording.
 public enum AccessibilityItemNames {
-    /// Names keyed by window ID, for items whose Accessibility element sits
-    /// at the same x as the window. Empty without Accessibility permission.
+    /// Names keyed by window ID, for items whose window contains the middle of
+    /// an Accessibility element. Elements sit a few points inside their
+    /// window, so their edges do not line up. An item its app is not drawing
+    /// keeps its last frame, which can overlap a drawn item, so on-screen
+    /// items win. Empty without Accessibility permission.
     public static func names(for items: [MenuBarItem]) -> [WindowID: String] {
         guard AccessibilityPermission.isGranted else { return [:] }
         var names: [WindowID: String] = [:]
         for (pid, ownedItems) in Dictionary(grouping: items, by: \.ownerPID) {
             for extra in menuBarExtras(of: pid) {
-                guard let item = ownedItems.first(where: { abs($0.frame.minX - extra.x) < 1 }) else { continue }
+                let containingItems = ownedItems.filter { $0.frame.minX <= extra.midX && extra.midX < $0.frame.maxX }
+                guard let item = containingItems.first(where: \.isOnScreen) ?? containingItems.first else { continue }
                 names[item.windowID] = extra.name
             }
         }
@@ -21,7 +25,7 @@ public enum AccessibilityItemNames {
 
     private static let messagingTimeout: Float = 0.25
 
-    private static func menuBarExtras(of pid: Int32) -> [(x: CGFloat, name: String)] {
+    private static func menuBarExtras(of pid: Int32) -> [(midX: CGFloat, name: String)] {
         let app = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(app, messagingTimeout)
         guard
@@ -33,6 +37,7 @@ public enum AccessibilityItemNames {
         return children.compactMap { child in
             guard
                 let positionValue: AXValue = attribute(child, kAXPositionAttribute),
+                let sizeValue: AXValue = attribute(child, kAXSizeAttribute),
                 let name = (attribute(child, kAXDescriptionAttribute) as String?)
                     ?? (attribute(child, kAXTitleAttribute) as String?),
                 !name.isEmpty
@@ -40,8 +45,10 @@ public enum AccessibilityItemNames {
                 return nil
             }
             var position = CGPoint.zero
+            var size = CGSize.zero
             AXValueGetValue(positionValue, .cgPoint, &position)
-            return (position.x, name)
+            AXValueGetValue(sizeValue, .cgSize, &size)
+            return (position.x + size.width / 2, name)
         }
     }
 

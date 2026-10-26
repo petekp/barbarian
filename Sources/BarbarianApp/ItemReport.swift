@@ -1,5 +1,6 @@
 import Foundation
 import BarbarianCore
+import BarbarianSystem
 
 /// `Barbarian --print-items`: one line per menu bar item, left to right,
 /// for checking positions from a terminal while Barbarian runs.
@@ -20,12 +21,14 @@ enum ItemReport {
             )
             : nil
 
+        let accessibilityNames = AccessibilityItemNames.names(for: items)
         for item in items.sorted(by: { ($0.frame.minX, $0.windowID) < ($1.frame.minX, $1.windowID) }) {
             let section = layout?.section(of: item.windowID)?.rawValue ?? (layout?.controls.icon == item.windowID ? "icon" : "-")
             let fields = [
                 "\(item.windowID)",
                 item.ownerName,
                 item.title ?? "-",
+                accessibilityNames[item.windowID] ?? "-",
                 "x=\(Int(item.frame.minX))",
                 "w=\(Int(item.frame.width))",
                 item.isOnScreen ? "on" : "off",
