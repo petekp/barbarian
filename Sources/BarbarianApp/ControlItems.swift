@@ -16,7 +16,7 @@ final class ControlItems {
         Self.placeIconRightmostOnFirstLaunch()
         icon = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         icon.autosaveName = Self.iconAutosaveName
-        icon.button?.image = Self.symbol("line.3.horizontal.decrease", description: "Barbarian")
+        icon.button?.image = BattleAxeIcon.image()
 
         // A status item without a saved position appears at the left end of
         // the status items, so on first launch both dividers start left of
