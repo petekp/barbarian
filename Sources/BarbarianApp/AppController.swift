@@ -88,9 +88,10 @@ final class AppController: NSObject, NSApplicationDelegate {
         if newState != .showingShownOnly && state == .showingShownOnly {
             pointerLastInMenuBarAt = Date()
         }
+        let revealsMore = newState != .showingShownOnly && newState != state
         state = newState
         apply()
-        if newState != .showingShownOnly { captureRevealedItems() }
+        if revealsMore { captureRevealedItems() }
     }
 
     /// Revealed items are on screen, so their images can be captured once

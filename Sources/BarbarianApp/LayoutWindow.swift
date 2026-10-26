@@ -459,6 +459,9 @@ private struct ItemChip: View {
     @ViewBuilder private var iconImage: some View {
         if let icon {
             Image(nsImage: icon)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(maxWidth: icon.size.width, maxHeight: icon.size.height)
         } else {
             Image(systemName: "questionmark.square.dashed").font(.title3)
         }
