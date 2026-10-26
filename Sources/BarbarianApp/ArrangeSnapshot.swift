@@ -3,20 +3,26 @@ import BarbarianCore
 import BarbarianSystem
 import SwiftUI
 
-/// `Barbarian --render-arrange <file.png> [--lift <window ID> <index>]` draws
-/// the Arrange window's strip for the current menu bar to a PNG, without
-/// opening a window. `--lift` draws one item or divider mid-drag over the gap
-/// it would open at `index` among the other entries.
+/// `Barbarian --render-arrange <file.png> [--lift <window ID> <index>] [--item-images]`
+/// draws the Arrange window's strip for the current menu bar to a PNG,
+/// without opening a window. `--lift` draws one item or divider mid-drag over
+/// the gap it would open at `index` among the other entries. Items show their
+/// app's icon unless `--item-images` captures their own images, which makes
+/// macOS show a screen recording alert for this process.
 enum ArrangeSnapshot {
     static func run(arguments: [String]) -> Int32 {
-        guard let output = RenderCommand.outputURL(after: "--render-arrange", in: arguments, usage: "<file.png> [--lift <window ID> <index>]") else {
+        guard let output = RenderCommand.outputURL(after: "--render-arrange", in: arguments, usage: "<file.png> [--lift <window ID> <index>] [--item-images]") else {
             return 1
         }
         guard let barbarian = RunningBarbarian(), let layout = barbarian.layout else {
             return RenderCommand.fail("Barbarian is not running, or its three status items were not found.")
         }
-        let images = ItemImageCache()
-        capture(barbarian.menuBar.items, into: images)
+        var images: ItemImageCache?
+        if arguments.contains("--item-images") {
+            let cache = ItemImageCache()
+            capture(barbarian.menuBar.items, into: cache)
+            images = cache
+        }
         let presentation = ItemPresentation(layout: layout, images: images)
         let widths = ArrangeContent.widths(of: layout, presentation: presentation)
 

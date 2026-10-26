@@ -17,7 +17,7 @@ Agents build and maintain all of it. Read these before changing behavior:
 | Quit the running copy and open the installed one | `scripts/restart-app.sh` |
 | Redraw `Resources/AppIcon.icns` after changing the axe or the icon colors | `scripts/make-app-icon.sh` |
 | List the active menu bar's items with title, Accessibility name, position and section | `.build/debug/Barbarian --print-items` |
-| Render the Arrange window to a PNG without opening it, optionally with an item or divider mid-drag | `.build/debug/Barbarian --render-arrange <file.png> [--lift <window ID> <index>]` |
+| Render the Arrange window to a PNG without opening it, optionally with an item or divider mid-drag | `.build/debug/Barbarian --render-arrange <file.png> [--lift <window ID> <index>] [--item-images]` |
 | Render the Settings window to a PNG without opening it | `.build/debug/Barbarian --render-settings <file.png>` |
 | Drive the running app | `.build/debug/Barbarian --command <name>` |
 
@@ -43,3 +43,4 @@ Barbarian acts on the menu bar of the Mac it runs on, which is Pete's own.
 - macOS ties the Accessibility grant to the app's signature and path. `scripts/build-app.sh` always signs with the same certificate and installs to the same path, so a rebuild keeps the grant. Keep both stable.
 - Without Accessibility, Barbarian can hide and reveal sections but cannot move or click other apps' items. Code that posts events checks `AccessibilityPermission.isGranted` first and must keep doing so.
 - Screen Recording is optional. With it, Barbarian shows each item's own image and reads window titles. Without it, items show their app's icon and names come from the owning app or from Accessibility. Code that captures checks `ScreenRecordingPermission.isGranted` first.
+- Every ScreenCaptureKit capture run from a terminal, such as `--render-arrange --item-images` or a test script, makes macOS show Pete a screen recording alert, and each rebuild counts as a new app. Render without `--item-images` unless the change is to item images, and ask Pete before capturing.
