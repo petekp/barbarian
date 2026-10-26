@@ -59,6 +59,12 @@ final class Preferences {
         didSet { defaults.set(revealsOnHover, forKey: Key.revealsOnHover) }
     }
 
+    /// Off by default: capturing items needs Screen Recording, and macOS asks
+    /// people to confirm that permission again from time to time.
+    var showsItemImages: Bool {
+        didSet { defaults.set(showsItemImages, forKey: Key.showsItemImages) }
+    }
+
     /// Nil when the person cleared the shortcut.
     var showHiddenShortcut: Shortcut? {
         didSet {
@@ -82,6 +88,7 @@ final class Preferences {
     private enum Key {
         static let rehideDelay = "RehideDelay"
         static let revealsOnHover = "RevealsOnHover"
+        static let showsItemImages = "ShowsItemImages"
         static let showHiddenShortcut = "ShowHiddenShortcut"
         static let itemsMenuShortcut = "ItemsMenuShortcut"
     }
@@ -90,6 +97,7 @@ final class Preferences {
         let defaults = UserDefaults.standard
         rehideDelay = defaults.object(forKey: Key.rehideDelay) as? TimeInterval ?? 4
         revealsOnHover = defaults.object(forKey: Key.revealsOnHover) as? Bool ?? true
+        showsItemImages = defaults.bool(forKey: Key.showsItemImages)
         showHiddenShortcut = Self.load(Key.showHiddenShortcut, from: defaults, default: .defaultShowHidden)
         itemsMenuShortcut = Self.load(Key.itemsMenuShortcut, from: defaults, default: .defaultItemsMenu)
     }

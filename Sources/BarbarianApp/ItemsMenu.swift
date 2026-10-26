@@ -29,12 +29,6 @@ enum ItemsMenu {
             grant.target = target
             menu.addItem(grant)
         }
-        if !ScreenRecordingPermission.isGranted {
-            if AccessibilityPermission.isGranted { menu.addItem(.separator()) }
-            let grant = NSMenuItem(title: "Show Items' Own Icons…", action: #selector(MenuTarget.grantScreenRecording), keyEquivalent: "")
-            grant.target = target
-            menu.addItem(grant)
-        }
 
         menu.addItem(.separator())
         addCommand("Show Hidden Items", #selector(MenuTarget.showHidden), to: menu, target: target, checked: controller.state == .showingHidden)
@@ -130,6 +124,4 @@ private final class MenuTarget: NSObject {
         NSApp.activate()
         NSApp.orderFrontStandardAboutPanel(nil)
     }
-
-    @objc func grantScreenRecording() { ScreenRecordingPermission.requestAndOpenSettings() }
 }

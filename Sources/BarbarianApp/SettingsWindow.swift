@@ -72,6 +72,16 @@ private struct SettingsView: View {
                     }
                 }
                 Toggle("Show Hidden items when the pointer rests on the menu bar", isOn: $preferences.revealsOnHover)
+                Toggle(isOn: Binding(
+                    get: { preferences.showsItemImages },
+                    set: { isOn in
+                        preferences.showsItemImages = isOn
+                        if isOn && !screenRecordingGranted { ScreenRecordingPermission.requestAndOpenSettings() }
+                    }
+                )) {
+                    Text("Show items' own icons")
+                    Text("Needs Screen Recording, which macOS asks you to confirm about once a month. When off, items show their app's icon.")
+                }
             }
 
             Section("Shortcuts") {
@@ -90,12 +100,14 @@ private struct SettingsView: View {
                     isGranted: accessibilityGranted,
                     grant: AccessibilityPermission.requestAndOpenSettings
                 )
-                PermissionRow(
-                    title: "Screen Recording",
-                    detail: "Optional. Shows each item's own icon and name instead of its app's.",
-                    isGranted: screenRecordingGranted,
-                    grant: ScreenRecordingPermission.requestAndOpenSettings
-                )
+                if preferences.showsItemImages {
+                    PermissionRow(
+                        title: "Screen Recording",
+                        detail: "Needed to show items' own icons.",
+                        isGranted: screenRecordingGranted,
+                        grant: ScreenRecordingPermission.requestAndOpenSettings
+                    )
+                }
             }
         }
         .formStyle(.grouped)
