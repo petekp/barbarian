@@ -38,7 +38,8 @@ private func window(_ id: WindowID, x: CGFloat, y: CGFloat, height: CGFloat, onS
 
     let layout = try #require(MenuBarLayout(
         items: MenuBarMembership.items(of: windows, inMenuBarAt: externalTop),
-        controls: ControlItemIDs(icon: 1, hiddenDivider: 8, alwaysHiddenDivider: 9)
+        controls: ControlItemIDs(icon: 1, hiddenDivider: 8, alwaysHiddenDivider: 9),
+        statusArea: -399...2161
     ))
 
     #expect(layout.unplacedItems.isEmpty)

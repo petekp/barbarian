@@ -1,11 +1,12 @@
 import AppKit
+import BarbarianCore
 import BarbarianSystem
 import Carbon.HIToolbox
 import SwiftUI
 
 /// Barbarian's Settings window. It opens by itself the first time Barbarian
 /// runs, because its first section explains the dividers and the axe.
-final class SettingsWindowController: NSObject, NSWindowDelegate {
+final class SettingsWindowController {
     private unowned let controller: AppController
     private var window: NSWindow?
 
@@ -22,31 +23,19 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     }
 
     func show() {
-        let window = self.window ?? makeWindow()
-        self.window = window
-        NSApp.activate()
-        window.makeKeyAndOrderFront(nil)
-        window.orderFrontRegardless()
-    }
-
-    private func makeWindow() -> NSWindow {
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 640),
-            styleMask: [.titled, .closable],
-            backing: .buffered,
-            defer: false
+        let window = self.window ?? NSWindow.hosting(
+            SettingsView(
+                preferences: .shared,
+                onShortcutRecording: { [weak controller] isRecording in
+                    if isRecording { controller?.suspendHotKeys() } else { controller?.registerHotKeys() }
+                }
+            ),
+            title: "Barbarian Settings",
+            size: NSSize(width: 480, height: 640),
+            styleMask: [.titled, .closable]
         )
-        window.title = "Barbarian Settings"
-        window.isReleasedWhenClosed = false
-        window.delegate = self
-        window.contentView = NSHostingView(rootView: SettingsView(
-            preferences: .shared,
-            onShortcutRecording: { [weak controller] isRecording in
-                if isRecording { controller?.suspendHotKeys() } else { controller?.registerHotKeys() }
-            }
-        ))
-        window.center()
-        return window
+        self.window = window
+        window.bringForward()
     }
 }
 
@@ -54,57 +43,69 @@ private struct SettingsView: View {
     @Bindable var preferences: Preferences
     let onShortcutRecording: (Bool) -> Void
 
+    /// Read again whenever Barbarian becomes active, as it does when someone
+    /// comes back from System Settings.
+    @State private var opensAtLogin = LaunchAtLogin.isEnabled
+    @State private var accessibilityGranted = AccessibilityPermission.isGranted
+    @State private var screenRecordingGranted = ScreenRecordingPermission.isGranted
+
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { _ in
-            Form {
-                Section("How Barbarian works") {
-                    Explanation(symbol: "chevron.left", text: "Items left of the single chevron are Hidden. Click the axe, or rest the pointer on the empty part of the menu bar, to show them.")
-                    Explanation(symbol: "chevron.left.2", text: "Items left of the double chevron are Always Hidden. Option-click the axe to show them too.")
-                    Explanation(symbol: "list.bullet", text: "Right-click the axe for a list of every item, including items that don't fit. Pick one to open it.")
-                    Explanation(symbol: "hand.draw", text: "To move items between sections, Command-drag them in the menu bar, or choose Arrange Menu Bar from that list.")
-                }
+        Form {
+            Section("How Barbarian works") {
+                Explanation(symbol: Divider.hidden.symbolName, text: "Items left of the single chevron are Hidden. Click the axe, or rest the pointer on the empty part of the menu bar, to show them.")
+                Explanation(symbol: Divider.alwaysHidden.symbolName, text: "Items left of the double chevron are Always Hidden. Option-click the axe to show them too.")
+                Explanation(symbol: "list.bullet", text: "Right-click the axe for a list of every item, including items that don't fit. Pick one to open it.")
+                Explanation(symbol: "hand.draw", text: "To move items between sections, Command-drag them in the menu bar, or choose Arrange Menu Bar from that list.")
+            }
 
-                Section("General") {
-                    Toggle("Open at login", isOn: Binding(
-                        get: { LaunchAtLogin.isEnabled },
-                        set: { try? LaunchAtLogin.setEnabled($0) }
-                    ))
-                    Picker("Hide items again after", selection: $preferences.rehideDelay) {
-                        ForEach(Preferences.rehideDelayChoices, id: \.self) { seconds in
-                            Text("\(Int(seconds)) seconds").tag(seconds)
-                        }
+            Section("General") {
+                Toggle("Open at login", isOn: Binding(
+                    get: { opensAtLogin },
+                    set: { enabled in
+                        try? LaunchAtLogin.setEnabled(enabled)
+                        opensAtLogin = LaunchAtLogin.isEnabled
                     }
-                    Toggle("Show Hidden items when the pointer rests on the menu bar", isOn: $preferences.revealsOnHover)
-                }
-
-                Section("Shortcuts") {
-                    LabeledContent("Show Hidden items") {
-                        ShortcutRecorder(shortcut: $preferences.showHiddenShortcut, onRecording: onShortcutRecording)
-                    }
-                    LabeledContent("Open the item list") {
-                        ShortcutRecorder(shortcut: $preferences.itemsMenuShortcut, onRecording: onShortcutRecording)
+                ))
+                Picker("Hide items again after", selection: $preferences.rehideDelay) {
+                    ForEach(Preferences.rehideDelayChoices, id: \.self) { seconds in
+                        Text("\(Int(seconds)) seconds").tag(seconds)
                     }
                 }
+                Toggle("Show Hidden items when the pointer rests on the menu bar", isOn: $preferences.revealsOnHover)
+            }
 
-                Section("Permissions") {
-                    PermissionRow(
-                        title: "Accessibility",
-                        detail: "Needed to open items that don't fit and to move items.",
-                        isGranted: AccessibilityPermission.isGranted,
-                        grant: { AccessibilityPermission.request(); AccessibilityPermission.openSettings() }
-                    )
-                    PermissionRow(
-                        title: "Screen Recording",
-                        detail: "Optional. Shows each item's own icon and name instead of its app's.",
-                        isGranted: ScreenRecordingPermission.isGranted,
-                        grant: { ScreenRecordingPermission.request(); ScreenRecordingPermission.openSettings() }
-                    )
+            Section("Shortcuts") {
+                LabeledContent("Show Hidden items") {
+                    ShortcutRecorder(shortcut: $preferences.showHiddenShortcut, onRecording: onShortcutRecording)
+                }
+                LabeledContent("Open the item list") {
+                    ShortcutRecorder(shortcut: $preferences.itemsMenuShortcut, onRecording: onShortcutRecording)
                 }
             }
-            .formStyle(.grouped)
+
+            Section("Permissions") {
+                PermissionRow(
+                    title: "Accessibility",
+                    detail: "Needed to open items that don't fit and to move items.",
+                    isGranted: accessibilityGranted,
+                    grant: AccessibilityPermission.requestAndOpenSettings
+                )
+                PermissionRow(
+                    title: "Screen Recording",
+                    detail: "Optional. Shows each item's own icon and name instead of its app's.",
+                    isGranted: screenRecordingGranted,
+                    grant: ScreenRecordingPermission.requestAndOpenSettings
+                )
+            }
         }
+        .formStyle(.grouped)
         .frame(width: 480)
         .frame(minHeight: 560)
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            opensAtLogin = LaunchAtLogin.isEnabled
+            accessibilityGranted = AccessibilityPermission.isGranted
+            screenRecordingGranted = ScreenRecordingPermission.isGranted
+        }
     }
 }
 
@@ -144,6 +145,7 @@ private struct PermissionRow: View {
 }
 
 /// A button that records the next shortcut typed. Escape cancels.
+/// `onRecording` reports when recording starts and stops.
 private struct ShortcutRecorder: View {
     @Binding var shortcut: Shortcut?
     let onRecording: (Bool) -> Void
@@ -160,7 +162,6 @@ private struct ShortcutRecorder: View {
             if shortcut != nil && !isRecording {
                 Button {
                     shortcut = nil
-                    onRecording(false)
                 } label: {
                     Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
                 }
@@ -200,21 +201,14 @@ private struct ShortcutRecorder: View {
 /// content to a PNG without opening the window.
 enum SettingsSnapshot {
     static func run(arguments: [String]) -> Int32 {
-        guard let flag = arguments.firstIndex(of: "--render-settings"), flag + 1 < arguments.count else {
-            FileHandle.standardError.write(Data("usage: Barbarian --render-settings <file.png>\n".utf8))
+        guard let output = RenderCommand.outputURL(after: "--render-settings", in: arguments, usage: "<file.png>") else {
             return 1
         }
         let view = NSHostingView(rootView: SettingsView(preferences: .shared, onShortcutRecording: { _ in }))
         view.frame = NSRect(origin: .zero, size: view.fittingSize)
         view.layoutSubtreeIfNeeded()
-        guard let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return 1 }
+        guard let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return RenderCommand.fail("Rendering failed.") }
         view.cacheDisplay(in: view.bounds, to: bitmap)
-        do {
-            try bitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: arguments[flag + 1]))
-        } catch {
-            FileHandle.standardError.write(Data("Could not write the image: \(error.localizedDescription)\n".utf8))
-            return 1
-        }
-        return 0
+        return RenderCommand.writePNG(bitmap, to: output)
     }
 }

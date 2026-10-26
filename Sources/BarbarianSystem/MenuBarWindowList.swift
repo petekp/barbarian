@@ -6,17 +6,6 @@ import BarbarianCore
 /// Needs no permission. Window titles of other apps come back only with
 /// Screen Recording permission.
 public enum MenuBarWindowList {
-    /// Every item in `display`'s menu bar, in no particular order. Includes
-    /// items that do not fit and are off screen. See `MenuBarMembership`.
-    public static func items(in display: MenuBarDisplay) -> [MenuBarItem] {
-        MenuBarMembership.items(of: allWindows(), inMenuBarAt: display.bounds.minY)
-    }
-
-    /// The display whose menu bar holds `windowID`'s window.
-    public static func display(holding windowID: WindowID) -> MenuBarDisplay? {
-        frame(of: windowID).flatMap(MenuBarDisplay.holding)
-    }
-
     /// One item's window, wherever it is.
     public static func item(_ windowID: WindowID) -> MenuBarItem? {
         allWindows().first { $0.windowID == windowID }

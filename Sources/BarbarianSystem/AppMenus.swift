@@ -13,8 +13,7 @@ public enum AppMenus {
         else {
             return nil
         }
-        let app = AXUIElementCreateApplication(pid)
-        AXUIElementSetMessagingTimeout(app, 0.1)
+        let app = AXUIElement.application(pid, timeout: 0.1)
         guard
             let menuBar: AXUIElement = app.attribute(kAXMenuBarAttribute),
             let menus: [AXUIElement] = menuBar.attribute(kAXChildrenAttribute)

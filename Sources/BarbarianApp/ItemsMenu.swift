@@ -12,11 +12,9 @@ enum ItemsMenu {
         target.controller = controller
 
         if let layout {
-            let presentation = ItemPresentation(items: layout.entries.compactMap(\.item) + layout.unplacedItems)
-            let visibleStatusArea = controller.visibleStatusArea()
-            let isOffered = { (item: MenuBarItem) in !layout.isHiddenByItsApp(item, visibleStatusArea: visibleStatusArea) }
+            let presentation = ItemPresentation(layout: layout, images: controller.itemImages)
             for section in [MenuBarSection.shown, .hidden, .alwaysHidden] {
-                let items = layout.items(in: section).filter(isOffered)
+                let items = layout.items(in: section).filter { !layout.isNotDrawn($0) }
                 addSection(section.title, items: items, presentation: presentation, to: menu, target: target)
             }
             addSection("Not in the Menu Bar", items: layout.unplacedItems, presentation: presentation, to: menu, target: target)
@@ -94,10 +92,7 @@ private final class MenuTarget: NSObject {
     @objc func showAll() { controller?.toggle(.showingAll) }
     @objc func arrange() { controller?.openLayoutWindow() }
 
-    @objc func grantAccessibility() {
-        AccessibilityPermission.request()
-        AccessibilityPermission.openSettings()
-    }
+    @objc func grantAccessibility() { AccessibilityPermission.requestAndOpenSettings() }
 
     @objc func openSettings() { controller?.openSettings() }
 
@@ -106,8 +101,5 @@ private final class MenuTarget: NSObject {
         NSApp.orderFrontStandardAboutPanel(nil)
     }
 
-    @objc func grantScreenRecording() {
-        ScreenRecordingPermission.request()
-        ScreenRecordingPermission.openSettings()
-    }
+    @objc func grantScreenRecording() { ScreenRecordingPermission.requestAndOpenSettings() }
 }

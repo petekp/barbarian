@@ -26,8 +26,7 @@ public enum AccessibilityItemNames {
     private static let messagingTimeout: Float = 0.25
 
     private static func menuBarExtras(of pid: Int32) -> [(midX: CGFloat, name: String)] {
-        let app = AXUIElementCreateApplication(pid)
-        AXUIElementSetMessagingTimeout(app, messagingTimeout)
+        let app = AXUIElement.application(pid, timeout: messagingTimeout)
         guard
             let extrasBar: AXUIElement = app.attribute("AXExtrasMenuBar"),
             let children: [AXUIElement] = extrasBar.attribute(kAXChildrenAttribute)

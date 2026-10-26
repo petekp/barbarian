@@ -1,6 +1,14 @@
 import ApplicationServices
 
 extension AXUIElement {
+    /// The element for an app, with calls to it giving up after `timeout`
+    /// seconds so a hung app cannot stall Barbarian.
+    static func application(_ pid: Int32, timeout: Float) -> AXUIElement {
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(app, timeout)
+        return app
+    }
+
     func attribute<Value>(_ name: String) -> Value? {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(self, name as CFString, &value) == .success else { return nil }

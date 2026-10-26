@@ -127,7 +127,7 @@ public enum MenuBarItemEvents {
     /// Hides the pointer while events fly, then puts it back where it was.
     /// Posting a mouse event moves the real pointer to the event's location.
     private static func withCursorParked(_ body: () async throws -> Void) async throws {
-        let cursorLocation = CGEvent(source: nil)?.location ?? .zero
+        let cursorLocation = MenuBarDisplay.pointerLocation
         CGDisplayHideCursor(CGMainDisplayID())
         defer {
             CGWarpMouseCursorPosition(cursorLocation)

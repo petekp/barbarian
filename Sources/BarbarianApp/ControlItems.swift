@@ -46,7 +46,7 @@ final class ControlItems {
     /// while a section is revealed. `layout` says which divider currently
     /// plays which role; see `MenuBarLayout`.
     func apply(_ state: HidingState, layout: MenuBarLayout?) {
-        icon.button?.highlight(state != .showingShownOnly)
+        highlightIcon(state)
         for (identity, item) in dividers {
             guard let button = item.button else { continue }
             let divider = layout?.role(of: item.windowID) ?? identity
@@ -63,6 +63,10 @@ final class ControlItems {
         }
     }
 
+    func highlightIcon(_ state: HidingState) {
+        icon.button?.highlight(state != .showingShownOnly)
+    }
+
     /// Ice and other menu bar managers seed this key so their icon starts
     /// next to the system items. Position 0 is the right end of the items
     /// third-party apps can occupy.
@@ -73,23 +77,12 @@ final class ControlItems {
         }
     }
 
+    /// Under half the height of a menu bar icon, so a divider does not read
+    /// as an item.
     private static func dividerImage(_ divider: Divider) -> NSImage? {
-        switch divider {
-        case .hidden: symbol("chevron.left", description: "Hidden items divider", configuration: dividerSymbolConfiguration)
-        case .alwaysHidden: symbol("chevron.left.2", description: "Always Hidden items divider", configuration: dividerSymbolConfiguration)
-        }
-    }
-
-    /// Under half the height of a menu bar icon, so a divider does not read as an item.
-    private static let dividerSymbolConfiguration = NSImage.SymbolConfiguration(pointSize: 7, weight: .heavy)
-
-    private static func symbol(
-        _ name: String,
-        description: String,
-        configuration: NSImage.SymbolConfiguration? = nil
-    ) -> NSImage? {
-        var image = NSImage(systemSymbolName: name, accessibilityDescription: description)
-        if let configuration { image = image?.withSymbolConfiguration(configuration) }
+        let description = "\(divider == .hidden ? "Hidden" : "Always Hidden") items divider"
+        let image = NSImage(systemSymbolName: divider.symbolName, accessibilityDescription: description)?
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 7, weight: .heavy))
         image?.isTemplate = true
         return image
     }
@@ -99,6 +92,16 @@ extension NSStatusItem {
     var windowID: WindowID? {
         guard let number = button?.window?.windowNumber, number > 0 else { return nil }
         return WindowID(number)
+    }
+}
+
+extension Divider {
+    /// The chevron the divider shows: one for Hidden, two for Always Hidden.
+    var symbolName: String {
+        switch self {
+        case .hidden: "chevron.left"
+        case .alwaysHidden: "chevron.left.2"
+        }
     }
 }
 

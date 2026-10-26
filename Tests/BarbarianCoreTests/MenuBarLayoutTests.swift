@@ -11,8 +11,10 @@ private func item(_ id: WindowID, x: CGFloat, width: CGFloat = 30, onScreen: Boo
     )
 }
 
+private let statusArea: ClosedRange<CGFloat> = 848...1512
+
 private func layout(_ items: [MenuBarItem]) throws -> MenuBarLayout {
-    try #require(MenuBarLayout(items: items, controls: controls))
+    try #require(MenuBarLayout(items: items, controls: controls, statusArea: statusArea))
 }
 
 @Test func itemsFallIntoSectionsByDividerPosition() throws {
@@ -58,7 +60,6 @@ private func layout(_ items: [MenuBarItem]) throws -> MenuBarLayout {
 
     #expect(bar.unplacedItems.map(\.windowID) == [1])
     #expect(bar.section(of: 1) == nil)
-    #expect(bar.itemsOffScreen.map(\.windowID) == [1])
 }
 
 @Test func collapsedSectionItemsKeepTheirSectionWhileOffScreen() throws {
@@ -72,11 +73,10 @@ private func layout(_ items: [MenuBarItem]) throws -> MenuBarLayout {
     ])
 
     #expect(bar.items(in: .hidden).map(\.windowID) == [2])
-    #expect(bar.itemsOffScreen.map(\.windowID) == [1, 2])
 }
 
 @Test func layoutNeedsBarbarianIcon() {
-    #expect(MenuBarLayout(items: [item(1, x: 900)], controls: controls) == nil)
+    #expect(MenuBarLayout(items: [item(1, x: 900)], controls: controls, statusArea: statusArea) == nil)
 }
 
 @Test func placingBeforeANeighborDropsLeftOfIt() throws {
@@ -87,8 +87,7 @@ private func layout(_ items: [MenuBarItem]) throws -> MenuBarLayout {
     #expect(bar.destination(placing: 2, before: 2) == nil)
 }
 
-@Test func anOffScreenItemRightOfADrawnItemIsHiddenByItsApp() throws {
-    let visible: ClosedRange<CGFloat> = 848...1512
+@Test func anOffScreenItemRightOfADrawnItemIsNotDrawn() throws {
     let notDrawn = item(1, x: 1140, onScreen: false)
     let drawn = item(2, x: 1100)
     let doesNotFitAtTheLeftEdge = item(3, x: 862, onScreen: false)
@@ -96,11 +95,7 @@ private func layout(_ items: [MenuBarItem]) throws -> MenuBarLayout {
     let collapsed = item(5, x: -4_000, onScreen: false)
     let bar = try layout([collapsed, doesNotFitPastTheNotch, doesNotFitAtTheLeftEdge, drawn, notDrawn, item(100, x: 1200)])
 
-    #expect(bar.isHiddenByItsApp(notDrawn, visibleStatusArea: visible))
-    #expect(!bar.isHiddenByItsApp(drawn, visibleStatusArea: visible))
-    #expect(!bar.isHiddenByItsApp(doesNotFitAtTheLeftEdge, visibleStatusArea: visible))
-    #expect(!bar.isHiddenByItsApp(doesNotFitPastTheNotch, visibleStatusArea: visible))
-    #expect(!bar.isHiddenByItsApp(collapsed, visibleStatusArea: visible))
+    #expect(bar.notDrawnItems == [notDrawn.windowID])
 }
 
 @Test func movingToAnIndexAimsAtTheReliableEntryOnItsRight() throws {
@@ -109,16 +104,37 @@ private func layout(_ items: [MenuBarItem]) throws -> MenuBarLayout {
         item(102, x: 930, width: 14),
         item(101, x: 944, width: 14),
         item(2, x: 958),
-        item(3, x: 988),
+        item(3, x: 988, onScreen: false),
         item(4, x: 1018),
         item(100, x: 1048),
     ])
 
     #expect(bar.destination(moving: 1, to: 2) == .leftOf(2))
-    #expect(bar.destination(moving: 1, to: 3, unreliableNeighbors: [3]) == .leftOf(4))
+    #expect(bar.destination(moving: 1, to: 3) == .leftOf(4))
     #expect(bar.destination(moving: 1, to: 5) == .leftOf(100))
     #expect(bar.destination(moving: 4, to: 5) == nil)
-    #expect(bar.destination(moving: 2, to: 3) == nil)
     #expect(bar.destination(moving: 2, to: 2) == .leftOf(101))
     #expect(bar.destination(moving: 101, to: 4) == .leftOf(4))
+}
+
+@Test func barbarianWindowsAreFoundByOwnerInLeftToRightOrder() throws {
+    let barbarian: Int32 = 42
+    func own(_ id: WindowID, x: CGFloat) -> MenuBarItem {
+        MenuBarItem(windowID: id, ownerPID: barbarian, ownerName: "Barbarian", title: nil, frame: CGRect(x: x, y: 0, width: 20, height: 37), isOnScreen: true)
+    }
+    let bar = try #require(MenuBarLayout(
+        items: [item(1, x: 900), own(7, x: 930), item(2, x: 950), own(8, x: 980), own(9, x: 1010)],
+        barbarianPID: barbarian,
+        statusArea: statusArea
+    ))
+
+    #expect(bar.controls == ControlItemIDs(icon: 9, hiddenDivider: 8, alwaysHiddenDivider: 7))
+}
+
+@Test func aDraggedEntryShowsAtItsTargetAndADropIsReportedOnceTheBarMatches() throws {
+    let bar = try layout([item(1, x: 900), item(102, x: 930, width: 14), item(2, x: 944), item(101, x: 974, width: 14), item(100, x: 1018)])
+
+    #expect(bar.entries(inOrder: nil, moving: .item(item(1, x: 900)), to: 2).map(\.id) == [102, 2, 1, 101])
+    #expect(bar.hasOrder([1, 102, 2, 101]))
+    #expect(!bar.hasOrder([102, 1, 2, 101]))
 }

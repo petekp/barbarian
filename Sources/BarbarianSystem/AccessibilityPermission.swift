@@ -18,4 +18,9 @@ public enum AccessibilityPermission {
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
         NSWorkspace.shared.open(url)
     }
+
+    public static func requestAndOpenSettings() {
+        request()
+        openSettings()
+    }
 }

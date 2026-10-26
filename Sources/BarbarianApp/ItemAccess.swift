@@ -88,7 +88,7 @@ final class ItemAccess {
         Task {
             try? await Task.sleep(for: .milliseconds(400))
             let fits = MenuBarWindowList.item(item.windowID)?.isOnScreen ?? false
-            if !fits { Self.askForAccessibility(itemName: ItemPresentation(items: [item]).name(of: item)) }
+            if !fits { Self.askForAccessibility(itemName: ItemPresentation(items: [item], images: nil).name(of: item)) }
         }
     }
 
@@ -100,13 +100,12 @@ final class ItemAccess {
         alert.addButton(withTitle: "Cancel")
         NSApp.activate()
         if alert.runModal() == .alertFirstButtonReturn {
-            AccessibilityPermission.request()
-            AccessibilityPermission.openSettings()
+            AccessibilityPermission.requestAndOpenSettings()
         }
     }
 
     private static func message(for error: Error, opening item: MenuBarItem) -> String {
-        let name = ItemPresentation(items: [item]).name(of: item)
+        let name = ItemPresentation(items: [item], images: nil).name(of: item)
         switch error as? MenuBarItemEventError {
         case .itemGone(let id) where id == item.windowID:
             return "\(name) is no longer in the menu bar."

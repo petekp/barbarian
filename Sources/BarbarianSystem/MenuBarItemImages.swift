@@ -47,12 +47,13 @@ public enum MenuBarItemImages {
                 }
                 if isFirst { continuation.resume(returning: image) }
             }
-            SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration) { image, _ in
-                finish(image)
-            }
-            Task {
+            let timeout = Task {
                 try? await Task.sleep(for: captureTimeout)
                 finish(nil)
+            }
+            SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration) { image, _ in
+                timeout.cancel()
+                finish(image)
             }
         }
     }

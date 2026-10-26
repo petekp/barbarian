@@ -29,7 +29,11 @@ public struct MenuBarDisplay: Sendable, Equatable {
         all.first { $0.menuBarFrame.contains(point) }
     }
 
-    public var menuBarFrame: CGRect {
+    public var hasNotch: Bool {
+        statusArea.lowerBound > bounds.minX
+    }
+
+    private var menuBarFrame: CGRect {
         CGRect(x: bounds.minX, y: bounds.minY, width: bounds.width, height: menuBarHeight)
     }
 

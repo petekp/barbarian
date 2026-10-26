@@ -21,11 +21,7 @@ final class LayoutWindowController: NSObject, NSWindowDelegate {
         self.window = window
         controller.isPinnedOpen = true
         model.startRefreshing()
-        NSApp.activate()
-        window.makeKeyAndOrderFront(nil)
-        // macOS can refuse activation to a background app, as when a
-        // terminal command opens this window. The window still comes forward.
-        window.orderFrontRegardless()
+        window.bringForward()
     }
 
     func close() {
@@ -38,112 +34,94 @@ final class LayoutWindowController: NSObject, NSWindowDelegate {
     }
 
     private func makeWindow() -> NSWindow {
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1100, height: 250),
-            styleMask: [.titled, .closable, .resizable],
-            backing: .buffered,
-            defer: false
+        let window = NSWindow.hosting(
+            LayoutView(model: model),
+            title: "Arrange Menu Bar",
+            size: NSSize(width: 1100, height: 250),
+            styleMask: [.titled, .closable, .resizable]
         )
-        window.title = "Arrange Menu Bar"
-        window.isReleasedWhenClosed = false
-        window.contentView = NSHostingView(rootView: LayoutView(model: model))
-        window.center()
         window.delegate = self
         return window
     }
 }
 
-/// An item or divider being dragged in the Arrange window.
+/// An item or divider being dragged in the Arrange window. Only x matters:
+/// the strip is one row.
 struct EntryDrag: Equatable {
     let entry: MenuBarLayout.Entry
     /// The pointer, in the canvas's coordinates.
-    var pointer: CGPoint
+    var pointerX: CGFloat
     /// The pointer's offset from the entry's center when the drag began, so
     /// the entry stays where it was grabbed.
-    let grabOffset: CGSize
+    let grabOffsetX: CGFloat
     /// Where the entry would land among the other entries.
     var targetIndex: Int
+    /// The strip without the dragged entry, which the drag hit-tests against.
+    let othersStrip: ArrangeStrip
 
-    var entryCenter: CGPoint {
-        CGPoint(x: pointer.x - grabOffset.width, y: pointer.y - grabOffset.height)
+    var entryCenterX: CGFloat {
+        pointerX - grabOffsetX
     }
 }
 
-/// What the Arrange window shows: the managed entries in display order, how
-/// wide each is, and the strip they make.
+/// What the Arrange window shows: the managed entries in display order and
+/// the strip they make.
 struct ArrangeContent {
     let layout: MenuBarLayout
     let entries: [MenuBarLayout.Entry]
     let strip: ArrangeStrip
-    private let notDrawn: Set<WindowID>
+    let presentation: ItemPresentation
+    /// Each item's width in the strip, by window ID. Worked out once per
+    /// layout, since it measures text.
+    let widths: [WindowID: CGFloat]
 
     static let metrics = ArrangeStrip.Metrics(height: 64, spacing: 2, sectionPadding: 6, minimumSectionWidth: 90)
     static let nameFont = NSFont.systemFont(ofSize: 11)
-    static let dividerWidth: CGFloat = 26
-    static let notDrawnWidth: CGFloat = 34
+    private static let dividerWidth: CGFloat = 26
+    private static let notDrawnWidth: CGFloat = 34
 
-    /// The layout's order, or the order of a drop still being carried out,
-    /// with a dragged entry at its target.
-    init(
-        layout: MenuBarLayout,
-        pendingOrder: [WindowID]?,
-        drag: EntryDrag?,
-        presentation: ItemPresentation,
-        visibleStatusArea: ClosedRange<CGFloat>
-    ) {
+    init(layout: MenuBarLayout, pendingOrder: [WindowID]?, drag: EntryDrag?, presentation: ItemPresentation, widths: [WindowID: CGFloat]) {
         self.layout = layout
-        notDrawn = layout.notDrawnItems(visibleStatusArea: visibleStatusArea)
-        let entriesByID = Dictionary(layout.entries.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        var entries = pendingOrder?.compactMap { entriesByID[$0] } ?? layout.entries
-        if let drag {
-            entries.removeAll { $0.id == drag.entry.id }
-            entries.insert(drag.entry, at: min(max(drag.targetIndex, 0), entries.count))
-        }
-        self.entries = entries
-        strip = Self.strip(for: entries, notDrawn: notDrawn, presentation: presentation)
+        self.presentation = presentation
+        self.widths = widths
+        entries = layout.entries(inOrder: pendingOrder, moving: drag?.entry, to: drag?.targetIndex ?? 0)
+        strip = Self.strip(for: entries, widths: widths)
     }
 
-    func isNotDrawn(_ item: MenuBarItem) -> Bool {
-        notDrawn.contains(item.windowID)
+    /// A divider's role where the window shows it: the left one plays Always
+    /// Hidden, as in the menu bar, so a dragged divider shows the role it
+    /// will take.
+    func dividerRole(of divider: MenuBarLayout.Entry) -> BarbarianCore.Divider {
+        let firstDivider = entries.first { if case .divider = $0 { true } else { false } }
+        return firstDivider?.id == divider.id ? .alwaysHidden : .hidden
     }
 
-    /// The strip without `entry`, which a drag hit-tests against.
-    func stripWithout(_ entry: MenuBarLayout.Entry, presentation: ItemPresentation) -> ArrangeStrip {
-        Self.strip(for: entries.filter { $0.id != entry.id }, notDrawn: notDrawn, presentation: presentation)
-    }
-
-    private static func strip(
-        for entries: [MenuBarLayout.Entry],
-        notDrawn: Set<WindowID>,
-        presentation: ItemPresentation
-    ) -> ArrangeStrip {
+    static func strip(for entries: [MenuBarLayout.Entry], widths: [WindowID: CGFloat]) -> ArrangeStrip {
         ArrangeStrip(elements: entries.map { entry in
             switch entry {
             case .divider: .divider(width: dividerWidth)
-            case .item(let item) where notDrawn.contains(item.windowID): .item(width: notDrawnWidth)
-            case .item(let item): .item(width: itemWidth(name: presentation.name(of: item)))
+            case .item(let item): .item(width: widths[item.windowID] ?? notDrawnWidth)
             }
         }, metrics: metrics)
     }
 
-    static func itemWidth(name: String) -> CGFloat {
-        let textWidth = (name as NSString).size(withAttributes: [.font: nameFont]).width
-        return min(max(textWidth.rounded(.up) + 14, 56), 120)
-    }
-}
-
-extension MenuBarLayout {
-    /// Managed items their app is not drawing right now.
-    func notDrawnItems(visibleStatusArea: ClosedRange<CGFloat>) -> Set<WindowID> {
-        Set(entries.compactMap(\.item).filter { isHiddenByItsApp($0, visibleStatusArea: visibleStatusArea) }.map(\.windowID))
+    /// Every item's width: its name's, within limits, or a small fixed
+    /// width for an item its app is not drawing, which shows no name.
+    static func widths(of layout: MenuBarLayout, presentation: ItemPresentation) -> [WindowID: CGFloat] {
+        let items = layout.entries.compactMap(\.item) + layout.systemItems
+        return Dictionary(items.map { item in
+            let textWidth = (presentation.name(of: item) as NSString).size(withAttributes: [.font: nameFont]).width
+            let width = layout.isNotDrawn(item) ? notDrawnWidth : min(max(textWidth.rounded(.up) + 14, 56), 120)
+            return (item.windowID, width)
+        }, uniquingKeysWith: { first, _ in first })
     }
 }
 
 @Observable
 final class LayoutEditorModel {
     private(set) var layout: MenuBarLayout?
-    private(set) var presentation = ItemPresentation(items: [])
-    private(set) var visibleStatusArea: ClosedRange<CGFloat> = 0...0
+    private(set) var presentation = ItemPresentation(items: [], images: nil)
+    private var widths: [WindowID: CGFloat] = [:]
     private(set) var drag: EntryDrag?
     private(set) var isMoving = false
     private(set) var accessibilityGranted = AccessibilityPermission.isGranted
@@ -165,15 +143,7 @@ final class LayoutEditorModel {
     }
 
     var content: ArrangeContent? {
-        layout.map {
-            ArrangeContent(
-                layout: $0,
-                pendingOrder: pendingOrder,
-                drag: drag,
-                presentation: presentation,
-                visibleStatusArea: visibleStatusArea
-            )
-        }
+        layout.map { ArrangeContent(layout: $0, pendingOrder: pendingOrder, drag: drag, presentation: presentation, widths: widths) }
     }
 
     var canDrag: Bool { accessibilityGranted && !isMoving && pendingOrder == nil }
@@ -193,32 +163,32 @@ final class LayoutEditorModel {
 
     func refresh() {
         accessibilityGranted = AccessibilityPermission.isGranted
-        visibleStatusArea = controller.visibleStatusArea()
         guard drag == nil, !isMoving else { return }
         let latest = controller.currentLayout()
-        if let pendingOrder, let latest, latest.matches(pendingOrder, ignoring: latest.notDrawnItems(visibleStatusArea: visibleStatusArea)) {
+        if let pendingOrder, let latest, latest.hasOrder(pendingOrder) {
             self.pendingOrder = nil
         }
         guard latest != layout else { return }
         layout = latest
-        presentation = ItemPresentation(items: (latest?.entries.compactMap(\.item) ?? []) + (latest?.systemItems ?? []))
+        presentation = ItemPresentation(layout: latest, images: controller.itemImages)
+        widths = latest.map { ArrangeContent.widths(of: $0, presentation: presentation) } ?? [:]
     }
 
-    func dragChanged(_ entry: MenuBarLayout.Entry, pointer: CGPoint, start: CGPoint) {
-        guard canDrag, let content else { return }
+    func dragChanged(_ entry: MenuBarLayout.Entry, pointerX: CGFloat, startX: CGFloat) {
+        guard canDrag else { return }
         if drag == nil {
-            guard let index = content.entries.firstIndex(of: entry) else { return }
-            let frame = content.strip.frames[index]
+            guard let content, let index = content.entries.firstIndex(of: entry) else { return }
             drag = EntryDrag(
                 entry: entry,
-                pointer: pointer,
-                grabOffset: CGSize(width: start.x - frame.midX, height: 0),
-                targetIndex: index
+                pointerX: pointerX,
+                grabOffsetX: startX - content.strip.frames[index].midX,
+                targetIndex: index,
+                othersStrip: ArrangeContent.strip(for: content.entries.filter { $0.id != entry.id }, widths: widths)
             )
         }
         guard var drag else { return }
-        drag.pointer = pointer
-        let target = content.stripWithout(entry, presentation: presentation).insertionIndex(at: drag.entryCenter.x)
+        drag.pointerX = pointerX
+        let target = drag.othersStrip.insertionIndex(at: drag.entryCenterX)
         if target != drag.targetIndex {
             drag.targetIndex = target
             NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
@@ -231,17 +201,7 @@ final class LayoutEditorModel {
         let droppedOrder = content.entries.map(\.id)
         self.drag = nil
         land(drag.entry.id)
-        guard
-            canDrag,
-            let layout,
-            let destination = layout.destination(
-                moving: drag.entry.id,
-                to: drag.targetIndex,
-                unreliableNeighbors: layout.notDrawnItems(visibleStatusArea: visibleStatusArea)
-            )
-        else {
-            return
-        }
+        guard canDrag, let destination = content.layout.destination(moving: drag.entry.id, to: drag.targetIndex) else { return }
         let ownerPID = drag.entry.item?.ownerPID ?? ProcessInfo.processInfo.processIdentifier
         let name = drag.entry.item.map(presentation.name(of:)) ?? "the divider"
         pendingOrder = droppedOrder
@@ -267,11 +227,6 @@ final class LayoutEditorModel {
         }
     }
 
-    func requestAccessibility() {
-        AccessibilityPermission.request()
-        AccessibilityPermission.openSettings()
-    }
-
     /// Refreshes until the menu bar reports the dropped order, or gives up
     /// and shows what it reports.
     private func settle() async {
@@ -286,31 +241,22 @@ final class LayoutEditorModel {
     }
 }
 
-private extension MenuBarLayout {
-    /// Whether the entries are in `order`. Items in `ignoring` report stale
-    /// frames, so their place is not compared.
-    func matches(_ order: [WindowID], ignoring: Set<WindowID>) -> Bool {
-        entries.map(\.id).filter { !ignoring.contains($0) } == order.filter { !ignoring.contains($0) }
-    }
-}
-
 struct LayoutView: View {
     let model: LayoutEditorModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             if !model.accessibilityGranted {
-                AccessibilityBanner(onAllow: model.requestAccessibility)
+                AccessibilityBanner(onAllow: AccessibilityPermission.requestAndOpenSettings)
             }
             ScrollView(.horizontal) {
                 if let content = model.content {
                     ArrangeCanvas(
                         content: content,
-                        presentation: model.presentation,
                         drag: model.drag,
                         landingEntry: model.landingEntry,
                         canDrag: model.canDrag,
-                        onDragChanged: model.dragChanged(_:pointer:start:),
+                        onDragChanged: model.dragChanged(_:pointerX:startX:),
                         onDragEnded: model.dragEnded
                     )
                     .padding(.vertical, 4)
@@ -334,69 +280,63 @@ struct LayoutView: View {
 /// another section slides there as one move.
 struct ArrangeCanvas: View {
     let content: ArrangeContent
-    let presentation: ItemPresentation
     let drag: EntryDrag?
     var landingEntry: WindowID?
     let canDrag: Bool
-    var onDragChanged: (MenuBarLayout.Entry, CGPoint, CGPoint) -> Void = { _, _, _ in }
+    var onDragChanged: (MenuBarLayout.Entry, CGFloat, CGFloat) -> Void = { _, _, _ in }
     var onDragEnded: () -> Void = {}
 
     static let coordinateSpace = "arrange"
     static let spring = Animation.spring(duration: 0.34, bounce: 0.12)
     private static let headerHeight: CGFloat = 34
     private static let trailingGap: CGFloat = 10
-
-    private static let sections: [(title: String, caption: String, tint: Color)] = [
-        ("Always Hidden", "Option-click the axe", .purple),
-        ("Hidden", "Click the axe or hover", .blue),
-        ("Shown", "Always visible", .gray),
-    ]
+    private static let iconWidth: CGFloat = 40
 
     var body: some View {
         let strip = content.strip
         let stripHeight = ArrangeContent.metrics.height
+        let systemItems = content.layout.systemItems
         let trailingX = strip.width + Self.trailingGap
+        let systemItemsWidth = systemItems.map { content.widths[$0.windowID] ?? 0 }.reduce(0, +)
         ZStack(alignment: .topLeading) {
-            ForEach(Array(zip(Self.sections.indices, strip.sectionSpans)), id: \.0) { index, span in
+            ForEach(Array(zip(MenuBarSection.allCases, strip.sectionSpans)), id: \.0) { section, span in
                 SectionBackground(
-                    title: Self.sections[index].title,
-                    caption: Self.sections[index].caption,
-                    tint: Self.sections[index].tint,
+                    section: section,
                     frame: CGRect(x: span.lowerBound, y: Self.headerHeight, width: span.upperBound - span.lowerBound, height: stripHeight),
-                    headerHeight: Self.headerHeight,
-                    isDropTarget: drag.map { span.contains($0.entryCenter.x) } ?? false
+                    isDropTarget: drag.map { span.contains($0.entryCenterX) } ?? false
                 )
             }
             ForEach(Array(content.entries.enumerated()), id: \.element.id) { index, entry in
                 entryView(entry, frame: strip.frames[index].offsetBy(dx: 0, dy: Self.headerHeight))
             }
-            SystemItems(icon: BattleAxeIcon.image(), items: content.layout.systemItems, presentation: presentation, height: stripHeight)
-                .offset(x: trailingX, y: Self.headerHeight)
+            HStack(spacing: 0) {
+                Image(nsImage: BattleAxeIcon.image())
+                    .frame(width: Self.iconWidth, height: stripHeight)
+                    .help("Barbarian")
+                ForEach(systemItems) { item in
+                    itemChip(item, status: .placedByMacOS, isLifted: false)
+                        .frame(width: content.widths[item.windowID], height: stripHeight)
+                }
+            }
+            .offset(x: trailingX, y: Self.headerHeight)
         }
-        .frame(
-            width: trailingX + SystemItems.width(of: content.layout.systemItems, presentation: presentation),
-            height: Self.headerHeight + stripHeight,
-            alignment: .topLeading
-        )
+        .frame(width: trailingX + Self.iconWidth + systemItemsWidth, height: Self.headerHeight + stripHeight, alignment: .topLeading)
         .coordinateSpace(.named(Self.coordinateSpace))
     }
 
     @ViewBuilder
     private func entryView(_ entry: MenuBarLayout.Entry, frame: CGRect) -> some View {
         let isLifted = drag?.entry.id == entry.id
-        let isDraggable = canDrag && entry.item.map { !content.isNotDrawn($0) } ?? true
-        let center = isLifted ? CGPoint(x: drag?.entryCenter.x ?? frame.midX, y: frame.midY) : CGPoint(x: frame.midX, y: frame.midY)
+        let isDraggable = canDrag && entry.item.map { !content.layout.isNotDrawn($0) } ?? true
+        let centerX = isLifted ? drag?.entryCenterX ?? frame.midX : frame.midX
+        let center = CGPoint(x: centerX, y: frame.midY)
         Group {
             switch entry {
-            case .divider(let role, _):
-                DividerChip(role: role, isLifted: isLifted)
+            case .divider:
+                DividerChip(role: content.dividerRole(of: entry), isLifted: isLifted)
             case .item(let item):
-                ItemChip(
-                    name: presentation.name(of: item),
-                    icon: presentation.icon(of: item, size: 22),
-                    state: content.isNotDrawn(item) ? .notDrawn : (item.isOnScreen ? .shown : .doesNotFit),
-                    isLifted: isLifted
-                )
+                let status: ItemChip.Status = content.layout.isNotDrawn(item) ? .notDrawn : (item.isOnScreen ? .shown : .doesNotFit)
+                itemChip(item, status: status, isLifted: isLifted)
             }
         }
         .frame(width: frame.width, height: frame.height)
@@ -406,32 +346,56 @@ struct ArrangeCanvas: View {
         .zIndex(isLifted || landingEntry == entry.id ? 1 : 0)
         .gesture(
             DragGesture(minimumDistance: 3, coordinateSpace: .named(Self.coordinateSpace))
-                .onChanged { value in onDragChanged(entry, value.location, value.startLocation) }
+                .onChanged { value in onDragChanged(entry, value.location.x, value.startLocation.x) }
                 .onEnded { _ in onDragEnded() },
             isEnabled: isDraggable
         )
     }
+
+    private func itemChip(_ item: MenuBarItem, status: ItemChip.Status, isLifted: Bool) -> ItemChip {
+        ItemChip(
+            name: content.presentation.name(of: item),
+            icon: content.presentation.icon(of: item, size: 22),
+            status: status,
+            isLifted: isLifted
+        )
+    }
+}
+
+private extension MenuBarSection {
+    var caption: String {
+        switch self {
+        case .alwaysHidden: "Option-click the axe"
+        case .hidden: "Click the axe or hover"
+        case .shown: "Always visible"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .alwaysHidden: .purple
+        case .hidden: .blue
+        case .shown: .gray
+        }
+    }
 }
 
 private struct SectionBackground: View {
-    let title: String
-    let caption: String
-    let tint: Color
+    let section: MenuBarSection
     let frame: CGRect
-    let headerHeight: CGFloat
     let isDropTarget: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
-            Text(title).font(.system(size: 12, weight: .semibold))
-            Text(caption).font(.system(size: 10.5)).foregroundStyle(.secondary)
+            Text(section.title).font(.system(size: 12, weight: .semibold))
+            Text(section.caption).font(.system(size: 10.5)).foregroundStyle(.secondary)
         }
         .fixedSize()
         .offset(x: frame.minX + 4)
         .animation(ArrangeCanvas.spring, value: frame.minX)
 
         RoundedRectangle(cornerRadius: 10, style: .continuous)
-            .fill(tint.opacity(isDropTarget ? 0.2 : 0.1))
+            .fill(section.tint.opacity(isDropTarget ? 0.2 : 0.1))
             .overlay {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .strokeBorder(isDropTarget ? Color.accentColor.opacity(0.55) : .clear, lineWidth: 1.5)
@@ -444,18 +408,18 @@ private struct SectionBackground: View {
 }
 
 private struct ItemChip: View {
-    enum State { case shown, doesNotFit, notDrawn }
+    enum Status { case shown, doesNotFit, notDrawn, placedByMacOS }
 
     let name: String
     let icon: NSImage?
-    let state: State
+    let status: Status
     let isLifted: Bool
 
-    @SwiftUI.State private var isHovered = false
+    @State private var isHovered = false
 
     var body: some View {
         Group {
-            if state == .notDrawn {
+            if status == .notDrawn {
                 iconImage
                     .scaleEffect(0.6)
                     .frame(width: 26, height: 26)
@@ -465,16 +429,17 @@ private struct ItemChip: View {
                 VStack(spacing: 4) {
                     iconImage
                         .frame(height: 24)
-                        .opacity(state == .doesNotFit ? 0.45 : 1)
+                        .opacity(status == .doesNotFit ? 0.45 : 1)
                     Text(name)
                         .font(Font(ArrangeContent.nameFont))
                         .lineLimit(1)
-                        .foregroundStyle(state == .doesNotFit ? .secondary : .primary)
-                    if state == .doesNotFit {
+                        .foregroundStyle(status == .doesNotFit ? .secondary : .primary)
+                    if status == .doesNotFit {
                         Text("Doesn't fit").font(.system(size: 9.5)).foregroundStyle(.tertiary)
                     }
                 }
                 .padding(.horizontal, 4)
+                .opacity(status == .placedByMacOS ? 0.45 : 1)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -487,7 +452,7 @@ private struct ItemChip: View {
         .scaleEffect(isLifted ? 1.08 : 1)
         .animation(.spring(duration: 0.25, bounce: 0.2), value: isLifted)
         .animation(.easeOut(duration: 0.12), value: isHovered)
-        .onHover { isHovered = $0 }
+        .onHover { isHovered = status != .placedByMacOS && $0 }
         .help(help)
     }
 
@@ -500,10 +465,11 @@ private struct ItemChip: View {
     }
 
     private var help: String {
-        switch state {
+        switch status {
         case .shown: name
         case .doesNotFit: "\(name) doesn't fit in the menu bar right now"
         case .notDrawn: "\(name) isn't showing right now. Its app shows it only sometimes."
+        case .placedByMacOS: "\(name) is placed by macOS"
         }
     }
 }
@@ -514,7 +480,7 @@ private struct DividerChip: View {
 
     var body: some View {
         VStack(spacing: 4) {
-            Image(systemName: role == .alwaysHidden ? "chevron.left.2" : "chevron.left")
+            Image(systemName: role.symbolName)
                 .font(.system(size: 9, weight: .heavy))
             Capsule().frame(width: 3, height: 34)
         }
@@ -524,40 +490,6 @@ private struct DividerChip: View {
         .scaleEffect(isLifted ? 1.12 : 1)
         .animation(.spring(duration: 0.25, bounce: 0.2), value: isLifted)
         .help(role == .alwaysHidden ? "Items left of this divider are Always Hidden" : "Items left of this divider are Hidden")
-    }
-}
-
-/// Barbarian's icon and the items right of it, which macOS places. Shown
-/// for context and not draggable.
-private struct SystemItems: View {
-    let icon: NSImage
-    let items: [MenuBarItem]
-    let presentation: ItemPresentation
-    let height: CGFloat
-
-    static let iconWidth: CGFloat = 40
-
-    static func width(of items: [MenuBarItem], presentation: ItemPresentation) -> CGFloat {
-        iconWidth + items.map { ArrangeContent.itemWidth(name: presentation.name(of: $0)) }.reduce(0, +)
-    }
-
-    var body: some View {
-        HStack(spacing: 0) {
-            Image(nsImage: icon)
-                .frame(width: Self.iconWidth, height: height)
-                .help("Barbarian")
-            ForEach(items) { item in
-                VStack(spacing: 4) {
-                    if let image = presentation.icon(of: item, size: 22) {
-                        Image(nsImage: image).frame(height: 24)
-                    }
-                    Text(presentation.name(of: item)).font(Font(ArrangeContent.nameFont)).lineLimit(1)
-                }
-                .frame(width: ArrangeContent.itemWidth(name: presentation.name(of: item)), height: height)
-                .opacity(0.45)
-                .help("\(presentation.name(of: item)) is placed by macOS")
-            }
-        }
     }
 }
 

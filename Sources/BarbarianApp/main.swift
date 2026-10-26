@@ -7,7 +7,7 @@ let arguments = CommandLine.arguments
 let app = NSApplication.shared
 
 if arguments.contains("--print-items") {
-    ItemReport.print(MenuBarWindowList.itemsInRunningBarbarianMenuBar()?.items ?? [])
+    ItemReport.print()
     exit(0)
 }
 

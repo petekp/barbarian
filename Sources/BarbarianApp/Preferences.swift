@@ -12,24 +12,29 @@ struct Shortcut: Codable, Equatable {
     /// The key as typed, shown in Settings.
     let key: String
 
+    /// Each modifier's Carbon mask, AppKit flag and symbol, in the order
+    /// macOS shows them.
+    private static let modifiers: [(carbon: Int, flag: NSEvent.ModifierFlags, symbol: String)] = [
+        (controlKey, .control, "⌃"),
+        (optionKey, .option, "⌥"),
+        (shiftKey, .shift, "⇧"),
+        (cmdKey, .command, "⌘"),
+    ]
+
     var displayName: String {
-        var symbols = ""
-        if carbonModifiers & controlKey != 0 { symbols += "⌃" }
-        if carbonModifiers & optionKey != 0 { symbols += "⌥" }
-        if carbonModifiers & shiftKey != 0 { symbols += "⇧" }
-        if carbonModifiers & cmdKey != 0 { symbols += "⌘" }
-        return symbols + key
+        Self.modifiers.filter { carbonModifiers & $0.carbon != 0 }.map(\.symbol).joined() + key
     }
 
+    static let defaultShowHidden = Shortcut(keyCode: kVK_ANSI_B, carbonModifiers: controlKey | optionKey | cmdKey, key: "B")
+    static let defaultItemsMenu = Shortcut(keyCode: kVK_ANSI_M, carbonModifiers: controlKey | optionKey | cmdKey, key: "M")
+}
+
+extension Shortcut {
     /// A shortcut needs Command, Control or Option, so it cannot swallow
     /// plain typing.
     init?(event: NSEvent) {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        var modifiers = 0
-        if flags.contains(.control) { modifiers |= controlKey }
-        if flags.contains(.option) { modifiers |= optionKey }
-        if flags.contains(.shift) { modifiers |= shiftKey }
-        if flags.contains(.command) { modifiers |= cmdKey }
+        let modifiers = Self.modifiers.filter { flags.contains($0.flag) }.reduce(0) { $0 | $1.carbon }
         guard modifiers & (controlKey | optionKey | cmdKey) != 0,
               let key = event.charactersIgnoringModifiers?.uppercased(), !key.isEmpty
         else {
@@ -37,15 +42,6 @@ struct Shortcut: Codable, Equatable {
         }
         self.init(keyCode: Int(event.keyCode), carbonModifiers: modifiers, key: key)
     }
-
-    init(keyCode: Int, carbonModifiers: Int, key: String) {
-        self.keyCode = keyCode
-        self.carbonModifiers = carbonModifiers
-        self.key = key
-    }
-
-    static let defaultShowHidden = Shortcut(keyCode: kVK_ANSI_B, carbonModifiers: controlKey | optionKey | cmdKey, key: "B")
-    static let defaultItemsMenu = Shortcut(keyCode: kVK_ANSI_M, carbonModifiers: controlKey | optionKey | cmdKey, key: "M")
 }
 
 /// The settings people can change, saved in user defaults.
@@ -65,12 +61,21 @@ final class Preferences {
 
     /// Nil when the person cleared the shortcut.
     var showHiddenShortcut: Shortcut? {
-        didSet { save(showHiddenShortcut, forKey: Key.showHiddenShortcut) }
+        didSet {
+            save(showHiddenShortcut, forKey: Key.showHiddenShortcut)
+            onShortcutsChange?()
+        }
     }
 
     var itemsMenuShortcut: Shortcut? {
-        didSet { save(itemsMenuShortcut, forKey: Key.itemsMenuShortcut) }
+        didSet {
+            save(itemsMenuShortcut, forKey: Key.itemsMenuShortcut)
+            onShortcutsChange?()
+        }
     }
+
+    /// Called after either shortcut changes, to register the new ones.
+    @ObservationIgnored var onShortcutsChange: (() -> Void)?
 
     @ObservationIgnored private let defaults = UserDefaults.standard
 

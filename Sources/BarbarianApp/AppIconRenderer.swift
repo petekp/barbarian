@@ -16,11 +16,9 @@ enum AppIconRenderer {
     private static let axeColors = [color(0xF6D08A), color(0xB06F2C)]
 
     static func run(arguments: [String]) -> Int32 {
-        guard let flag = arguments.firstIndex(of: "--render-app-icon"), flag + 1 < arguments.count else {
-            FileHandle.standardError.write(Data("usage: Barbarian --render-app-icon <folder.iconset>\n".utf8))
+        guard let folder = RenderCommand.outputURL(after: "--render-app-icon", in: arguments, usage: "<folder.iconset>") else {
             return 1
         }
-        let folder = URL(fileURLWithPath: arguments[flag + 1])
         do {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             for points in [16, 32, 128, 256, 512] {
@@ -31,8 +29,7 @@ enum AppIconRenderer {
                 }
             }
         } catch {
-            FileHandle.standardError.write(Data("Could not write the icon set: \(error.localizedDescription)\n".utf8))
-            return 1
+            return RenderCommand.fail("Could not write the icon set: \(error.localizedDescription)")
         }
         return 0
     }

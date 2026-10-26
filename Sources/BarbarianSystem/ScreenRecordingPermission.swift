@@ -17,4 +17,9 @@ public enum ScreenRecordingPermission {
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!
         NSWorkspace.shared.open(url)
     }
+
+    public static func requestAndOpenSettings() {
+        request()
+        openSettings()
+    }
 }

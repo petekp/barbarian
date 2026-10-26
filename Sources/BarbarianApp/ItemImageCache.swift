@@ -4,35 +4,23 @@ import BarbarianSystem
 
 /// Menu bar items' own images, captured while they are on screen and kept for
 /// when they are hidden. Empty without Screen Recording permission.
+///
+/// Images are seen only in the items menu and the Arrange window, so items
+/// are captured when those open and when a section is revealed.
 @Observable
 final class ItemImageCache {
-    static let shared = ItemImageCache()
-
     private var images: [WindowID: NSImage] = [:]
-    @ObservationIgnored private var lastCaptureAt = Date.distantPast
     @ObservationIgnored private var isCapturing = false
-
-    /// Items such as a battery or a usage meter change their image, so
-    /// on-screen items are captured again this often.
-    private static let recaptureInterval: TimeInterval = 10
 
     func image(of id: WindowID) -> NSImage? {
         images[id]
     }
 
-    /// Captures the on-screen items among `items` when the last capture is
-    /// old enough, or now when `force` is set. `items` is read only then.
-    func refresh(items: () -> [MenuBarItem], force: Bool = false) {
-        let isDue = Date().timeIntervalSince(lastCaptureAt) >= Self.recaptureInterval
-        guard ScreenRecordingPermission.isGranted, !isCapturing, force || isDue else { return }
-        isCapturing = true
-        let items = items()
-        Task { await capture(items) }
-    }
-
+    /// Captures the on-screen items among `items`, unless a capture is under
+    /// way, and forgets items no longer among them.
     func capture(_ items: [MenuBarItem]) async {
+        guard !isCapturing else { return }
         isCapturing = true
-        lastCaptureAt = Date()
         defer { isCapturing = false }
         let captured = await MenuBarItemImages.capture(items)
         let current = Set(items.map(\.windowID))

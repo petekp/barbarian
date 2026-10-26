@@ -48,16 +48,22 @@ public struct MenuBarLayout: Sendable, Equatable {
     /// and are not managed.
     public let systemItems: [MenuBarItem]
 
-    /// The left edge of the leftmost drawn item up to Barbarian's icon,
-    /// dividers included.
-    private let leftmostOnScreenX: CGFloat
+    /// Managed items off screen because their app is not drawing them, as
+    /// Now Playing is when nothing plays, rather than because they do not
+    /// fit. Their frames are stale.
+    ///
+    /// macOS drops items that do not fit from the left end of the bar, so
+    /// they sit left of every drawn item. An item its app is not drawing keeps
+    /// its last frame, inside the visible bar and right of a drawn item.
+    public let notDrawnItems: Set<WindowID>
 
-    /// Reads a layout from the window list.
+    /// Reads a layout from one menu bar's items. `statusArea` is the x range
+    /// where status items can appear in that menu bar.
     ///
     /// Divider roles follow position, not identity: the left divider always
     /// separates Always Hidden from Hidden. That keeps the sections in order
     /// when someone drags one divider past the other.
-    public init?(items: [MenuBarItem], controls: ControlItemIDs) {
+    public init?(items: [MenuBarItem], controls: ControlItemIDs, statusArea: ClosedRange<CGFloat>) {
         guard let icon = items.first(where: { $0.windowID == controls.icon }) else { return nil }
         self.controls = controls
 
@@ -76,7 +82,31 @@ public struct MenuBarLayout: Sendable, Equatable {
             .filter { $0.frame.minX > icon.frame.minX }
             .sorted { $0.frame.minX < $1.frame.minX }
         unplacedItems = items.filter { !$0.hasReportedPosition && !controls.dividers.contains($0.windowID) }
-        leftmostOnScreenX = (managed + [icon]).filter(\.isOnScreen).map(\.frame.minX).min() ?? icon.frame.minX
+        let leftmostOnScreenX = (managed + [icon]).filter(\.isOnScreen).map(\.frame.minX).min() ?? icon.frame.minX
+        notDrawnItems = Set(entries.compactMap(\.item).filter { item in
+            !item.isOnScreen
+                && statusArea.contains(item.frame.minX)
+                && statusArea.contains(item.frame.maxX)
+                && item.frame.minX > leftmostOnScreenX
+        }.map(\.windowID))
+    }
+
+    /// Reads a layout without knowing Barbarian's control items' IDs, as a
+    /// separate process must, and as Barbarian must for a menu bar that holds
+    /// copies of its windows. Barbarian's three windows, owned by
+    /// `barbarianPID`, are left to right the Always Hidden divider, the Hidden
+    /// divider and the icon.
+    public init?(items: [MenuBarItem], barbarianPID: Int32, statusArea: ClosedRange<CGFloat>) {
+        let barbarianWindows = items
+            .filter { $0.ownerPID == barbarianPID }
+            .sorted { $0.frame.minX < $1.frame.minX }
+            .map(\.windowID)
+        guard barbarianWindows.count == 3 else { return nil }
+        self.init(
+            items: items,
+            controls: ControlItemIDs(icon: barbarianWindows[2], hiddenDivider: barbarianWindows[1], alwaysHiddenDivider: barbarianWindows[0]),
+            statusArea: statusArea
+        )
     }
 
     /// The divider that currently plays each role.
@@ -110,26 +140,27 @@ public struct MenuBarLayout: Sendable, Equatable {
         }
     }
 
-    /// Managed items that are not on screen right now, for any reason:
-    /// their section is collapsed, or they do not fit.
-    public var itemsOffScreen: [MenuBarItem] {
-        entries.compactMap { entry in
-            guard case .item(let item) = entry, !item.isOnScreen else { return nil }
-            return item
-        } + unplacedItems
+    public func isNotDrawn(_ item: MenuBarItem) -> Bool {
+        notDrawnItems.contains(item.windowID)
     }
 
-    /// Whether `item` is off screen because its app is not drawing it, as Now
-    /// Playing is when nothing plays, rather than because it does not fit.
-    ///
-    /// macOS drops items that do not fit from the left end of the bar, so
-    /// they sit left of every drawn item. An item its app is not drawing keeps
-    /// its last frame, inside the visible bar and right of a drawn item.
-    public func isHiddenByItsApp(_ item: MenuBarItem, visibleStatusArea: ClosedRange<CGFloat>) -> Bool {
-        !item.isOnScreen
-            && visibleStatusArea.contains(item.frame.minX)
-            && visibleStatusArea.contains(item.frame.maxX)
-            && item.frame.minX > leftmostOnScreenX
+    /// The entries in `order` where it names them, else in their own order,
+    /// with `moving` taken out and put back at `index`. The Arrange window
+    /// shows this while a drag or a drop is under way.
+    public func entries(inOrder order: [WindowID]?, moving: Entry? = nil, to index: Int = 0) -> [Entry] {
+        let entriesByID = Dictionary(entries.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        var result = order?.compactMap { entriesByID[$0] } ?? entries
+        if let moving {
+            result.removeAll { $0.id == moving.id }
+            result.insert(moving, at: min(max(index, 0), result.count))
+        }
+        return result
+    }
+
+    /// Whether the entries are in `order`. Items their app is not drawing
+    /// report stale frames, so their place is not compared.
+    public func hasOrder(_ order: [WindowID]) -> Bool {
+        entries.map(\.id).filter { !notDrawnItems.contains($0) } == order.filter { !notDrawnItems.contains($0) }
     }
 
     /// Where to drop `item` so it lands immediately left of `neighbor`.
@@ -147,16 +178,11 @@ public struct MenuBarLayout: Sendable, Equatable {
     /// among the other entries, counting from the left.
     ///
     /// The move aims at the entry that will sit on its right, or at
-    /// Barbarian's icon past the last entry. Items in `unreliableNeighbors`,
-    /// such as ones their app is not drawing, report stale frames, so the
-    /// move aims past them at the next entry instead.
-    public func destination(
-        moving entry: WindowID,
-        to index: Int,
-        unreliableNeighbors: Set<WindowID> = []
-    ) -> MoveDestination? {
+    /// Barbarian's icon past the last entry. Items their app is not drawing
+    /// report stale frames, so the move aims past them at the next entry.
+    public func destination(moving entry: WindowID, to index: Int) -> MoveDestination? {
         let others = entries.map(\.id).filter { $0 != entry }
-        let rightNeighbor = others.dropFirst(min(index, others.count)).first { !unreliableNeighbors.contains($0) }
+        let rightNeighbor = others.dropFirst(min(index, others.count)).first { !notDrawnItems.contains($0) }
         if let rightNeighbor {
             return destination(placing: entry, before: rightNeighbor)
         }

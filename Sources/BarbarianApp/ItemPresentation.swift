@@ -2,46 +2,47 @@ import AppKit
 import BarbarianCore
 import BarbarianSystem
 
-/// How Barbarian names and draws other apps' menu bar items.
+/// How Barbarian names and draws the items of one menu bar layout.
 ///
-/// An item is drawn with its own image when `ItemImageCache` has one, which
-/// needs Screen Recording permission, and with its app's icon otherwise.
+/// Names are worked out once, when the presentation is made. An item is
+/// drawn with its own image when `images` has one, which needs Screen
+/// Recording permission, and with its app's icon otherwise.
 struct ItemPresentation {
-    private let accessibilityNames: [WindowID: String]
-    private let itemCountByOwner: [Int32: Int]
+    private let names: [WindowID: String]
+    private let images: ItemImageCache?
 
-    init(items: [MenuBarItem]) {
-        accessibilityNames = AccessibilityItemNames.names(for: items)
-        itemCountByOwner = items.reduce(into: [:]) { $0[$1.ownerPID, default: 0] += 1 }
+    init(layout: MenuBarLayout?, images: ItemImageCache?) {
+        self.init(items: layout.map { $0.entries.compactMap(\.item) + $0.systemItems + $0.unplacedItems } ?? [], images: images)
     }
 
-    /// The app's name, unless the app owns several items, as Control Center
-    /// does, or is a background process whose name nobody knows, such as
-    /// SystemUIServer for Siri. Then the item's own name, when Barbarian can
-    /// read it.
+    init(items: [MenuBarItem], images: ItemImageCache?) {
+        self.images = images
+        let accessibilityNames = AccessibilityItemNames.names(for: items)
+        let itemCountByOwner = items.reduce(into: [Int32: Int]()) { $0[$1.ownerPID, default: 0] += 1 }
+        names = Dictionary(items.map { item in
+            let app = NSRunningApplication(processIdentifier: item.ownerPID)
+            let name = ItemNaming.name(
+                appName: app?.localizedName ?? item.ownerName,
+                isSystemProcess: app?.bundleURL?.path.hasPrefix("/System/") ?? false,
+                appItemCount: itemCountByOwner[item.ownerPID, default: 0],
+                title: item.title,
+                accessibilityName: accessibilityNames[item.windowID]
+            )
+            return (item.windowID, name)
+        }, uniquingKeysWith: { first, _ in first })
+    }
+
     func name(of item: MenuBarItem) -> String {
-        let app = NSRunningApplication(processIdentifier: item.ownerPID)
-        let appName = app?.localizedName ?? item.ownerName
-        let isBackgroundProcess = app?.activationPolicy == .prohibited
-        guard itemCountByOwner[item.ownerPID, default: 0] > 1 || isBackgroundProcess else { return appName }
-        if let title = item.title, let systemName = Self.systemItemNames[title] { return systemName }
-        if let name = accessibilityNames[item.windowID] { return name }
-        if let title = item.title, !title.hasPrefix(Self.untitledWindowPrefix) { return title }
-        return appName
+        names[item.windowID] ?? item.ownerName
     }
-
-    /// AppKit titles a status item's window "Item-0", "Item-1" and so on
-    /// when its app gives the item no name.
-    private static let untitledWindowPrefix = "Item-"
 
     /// The item's own image, scaled down to fit `size` points high, or its
     /// app's icon at `size` points square.
     func icon(of item: MenuBarItem, size: CGFloat = 16) -> NSImage? {
-        if let captured = ItemImageCache.shared.image(of: item.windowID) {
+        if let captured = images?.image(of: item.windowID) {
             let image = captured.copy() as! NSImage
             let scale = min(1, size / captured.size.height)
             image.size = NSSize(width: captured.size.width * scale, height: captured.size.height * scale)
-            image.isTemplate = captured.isTemplate
             return image
         }
         guard let icon = NSRunningApplication(processIdentifier: item.ownerPID)?.icon?.copy() as? NSImage else {
@@ -50,20 +51,4 @@ struct ItemPresentation {
         icon.size = NSSize(width: size, height: size)
         return icon
     }
-
-    /// Window titles of Control Center's items, which macOS reports only to
-    /// processes with Screen Recording permission.
-    private static let systemItemNames = [
-        "AccessibilityShortcuts": "Accessibility Shortcuts",
-        "AudioVideoModule": "Camera and Microphone",
-        "BentoBox": "Control Center",
-        "FocusModes": "Focus",
-        "KeyboardBrightness": "Keyboard Brightness",
-        "MusicRecognition": "Music Recognition",
-        "NowPlaying": "Now Playing",
-        "ScreenMirroring": "Screen Mirroring",
-        "StageManager": "Stage Manager",
-        "UserSwitcher": "Fast User Switching",
-        "WiFi": "Wi-Fi",
-    ]
 }
