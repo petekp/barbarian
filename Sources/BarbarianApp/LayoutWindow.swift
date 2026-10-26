@@ -162,7 +162,11 @@ final class LayoutEditorModel {
         return ArrangeSection.sections(from: layout, pendingOrder: pendingOrder, drag: drag)
     }
 
-    var canDrag: Bool { accessibilityGranted && !isMoving }
+    /// The item last dropped, kept above its neighbors while it springs into
+    /// its slot.
+    private(set) var landingItem: WindowID?
+
+    var canDrag: Bool { accessibilityGranted && !isMoving && pendingOrder == nil }
 
     func startRefreshing() {
         refresh()
@@ -182,7 +186,7 @@ final class LayoutEditorModel {
         visibleStatusArea = AppController.visibleStatusArea()
         guard drag == nil, !isMoving else { return }
         let latest = controller.currentLayout()
-        if let pendingOrder, let latest, latest.matches(pendingOrder) {
+        if let pendingOrder, let latest, latest.matches(pendingOrder, ignoring: notDrawnItems(in: latest)) {
             self.pendingOrder = nil
         }
         guard latest != layout else { return }
@@ -223,6 +227,7 @@ final class LayoutEditorModel {
             section.section.map { ($0, section.items.map(\.windowID)) }
         })
         self.drag = nil
+        land(drag.item.windowID)
         guard
             canDrag,
             let layout,
@@ -247,6 +252,14 @@ final class LayoutEditorModel {
             }
             isMoving = false
             await settle()
+        }
+    }
+
+    private func land(_ item: WindowID) {
+        landingItem = item
+        Task {
+            try? await Task.sleep(for: .milliseconds(450))
+            if landingItem == item { landingItem = nil }
         }
     }
 
@@ -302,8 +315,12 @@ final class LayoutEditorModel {
 }
 
 private extension MenuBarLayout {
-    func matches(_ order: [MenuBarSection: [WindowID]]) -> Bool {
-        order.allSatisfy { section, ids in items(in: section).map(\.windowID) == ids }
+    /// Whether each section holds `order`'s items in its order. Items in
+    /// `ignoring` report stale frames, so their place is not compared.
+    func matches(_ order: [MenuBarSection: [WindowID]], ignoring: Set<WindowID>) -> Bool {
+        order.allSatisfy { section, ids in
+            items(in: section).map(\.windowID).filter { !ignoring.contains($0) } == ids.filter { !ignoring.contains($0) }
+        }
     }
 }
 
@@ -320,6 +337,7 @@ struct LayoutView: View {
                     sections: model.sections,
                     presentation: model.presentation,
                     drag: model.drag,
+                    landingItem: model.landingItem,
                     canDrag: model.canDrag,
                     note: model.offScreenNote(for:in:),
                     onDragChanged: model.dragChanged(_:pointer:start:grid:),
@@ -346,6 +364,7 @@ struct ArrangeCanvas: View {
     let sections: [ArrangeSection]
     let presentation: ItemPresentation
     let drag: ItemDrag?
+    let landingItem: WindowID?
     let canDrag: Bool
     let note: (MenuBarItem, MenuBarSection?) -> String?
     let onDragChanged: (MenuBarItem, CGPoint, CGPoint, ArrangeGrid) -> Void
@@ -360,6 +379,7 @@ struct ArrangeCanvas: View {
         sections: [ArrangeSection],
         presentation: ItemPresentation,
         drag: ItemDrag?,
+        landingItem: WindowID? = nil,
         canDrag: Bool,
         note: @escaping (MenuBarItem, MenuBarSection?) -> String?,
         onDragChanged: @escaping (MenuBarItem, CGPoint, CGPoint, ArrangeGrid) -> Void = { _, _, _, _ in },
@@ -369,6 +389,7 @@ struct ArrangeCanvas: View {
         self.sections = sections
         self.presentation = presentation
         self.drag = drag
+        self.landingItem = landingItem
         self.canDrag = canDrag
         self.note = note
         self.onDragChanged = onDragChanged
@@ -427,7 +448,7 @@ struct ArrangeCanvas: View {
         .pointerStyle(isDraggable ? (isLifted ? .grabActive : .grabIdle) : nil)
         .position(center)
         .animation(isLifted ? nil : Self.spring, value: center)
-        .zIndex(isLifted ? 1 : 0)
+        .zIndex(isLifted || landingItem == item.windowID ? 1 : 0)
         .gesture(
             DragGesture(minimumDistance: 3, coordinateSpace: .named(Self.coordinateSpace))
                 .onChanged { value in onDragChanged(item, value.location, value.startLocation, grid) }
