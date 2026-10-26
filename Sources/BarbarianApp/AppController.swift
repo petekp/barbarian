@@ -46,6 +46,9 @@ final class AppController: NSObject, NSApplicationDelegate {
         case .openMenu: showMenu()
         case .openLayout: openLayoutWindow()
         case .closeLayout: layoutWindow.close()
+        case .openItem(let id):
+            guard let item = MenuBarWindowList.items().first(where: { $0.windowID == id }) else { return }
+            access(item)
         }
     }
 

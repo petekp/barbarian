@@ -19,7 +19,7 @@ Agents build and maintain all of it. Read these before changing behavior:
 | Render the Arrange window to a PNG without opening it, optionally mid-drag | `.build/debug/Barbarian --render-arrange <file.png> [--lift <window ID> <section> <index>]` |
 | Drive the running app | `.build/debug/Barbarian --command <name>` |
 
-`--command` takes `show-hidden`, `show-all`, `hide`, `open-menu`, `open-layout` and `close-layout`. Send build and test output to a log under `.build/logs/` and check the exit status.
+`--command` takes `show-hidden`, `show-all`, `hide`, `open-menu`, `open-layout`, `close-layout` and `open-item <window ID>`. `open-item` opens an item as picking it from the menu does, so it moves and clicks other apps' items. Send build and test output to a log under `.build/logs/` and check the exit status.
 
 ## Where code goes
 

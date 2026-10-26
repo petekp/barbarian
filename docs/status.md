@@ -13,15 +13,15 @@ Checked on macOS 15.7 on a 14-inch MacBook Pro with a notch, without Accessibili
 - The layout window opens in front and shows one row per section in menu bar order.
 - `scripts/build-app.sh` signs with the same Apple Development certificate on every build.
 - The Arrange window's drawing, rendered with `--render-arrange` on 2026-10-26: sections wrap, dimmed items say "Not showing" or "Doesn't fit", and a lifted item opens a gap in its target section.
+- Opening an off-screen item, with Accessibility, on 2026-10-26: `--command open-item 515` moved OrbStack from Always Hidden to the left of the icon, clicked it so its menu opened, and moved it back once the menu closed. Every item ended in its original order and section.
 - Item names read through Accessibility, checked with `--print-items` from a terminal that has Accessibility, on 2026-10-26. Control Center's drawn items get their own names, such as "Wi‑Fi, connected, 3 bars".
 
 ## Built, not yet verified
 
 These need Accessibility permission or a real pointer, which no check has had.
 
-- Moving items: dropping in the layout window, and the move-click-return sequence when opening an off-screen item from the menu.
+- Moving items by dropping in the layout window.
 - Dragging in the layout window with a real pointer: the spring animations, the haptic tick and the grab pointer.
-- Clicking items with posted events.
 - Revealing Hidden by resting the pointer on the empty part of the bar.
 - Rehiding on a click outside the menu bar.
 - The hot keys Control-Option-Command-B and Control-Option-Command-M.

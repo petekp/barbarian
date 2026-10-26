@@ -13,9 +13,8 @@ if arguments.contains("--render-arrange") {
 }
 
 if let flag = arguments.firstIndex(of: "--command") {
-    let names = Command.allCases.map(\.rawValue).joined(separator: ", ")
-    guard flag + 1 < arguments.count, let command = Command(rawValue: arguments[flag + 1]) else {
-        FileHandle.standardError.write(Data("usage: Barbarian --command <\(names)>\n".utf8))
+    guard let command = Command(arguments: Array(arguments[(flag + 1)...])) else {
+        FileHandle.standardError.write(Data("usage: Barbarian --command <\(Command.usage)>\n".utf8))
         exit(2)
     }
     CommandChannel.send(command)

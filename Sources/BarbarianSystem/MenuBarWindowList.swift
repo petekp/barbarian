@@ -15,16 +15,11 @@ public enum MenuBarWindowList {
         return infos.compactMap(menuBarItem)
     }
 
-    /// The current frame of one window, or nil when the window is gone.
+    /// The current frame of one menu bar item, or nil when the item is gone.
+    /// Reads the whole list: `.optionIncludingWindow` on its own returns
+    /// nothing.
     public static func frame(of windowID: WindowID) -> CGRect? {
-        guard
-            let infos = CGWindowListCopyWindowInfo([.optionIncludingWindow], windowID) as? [[String: Any]],
-            let info = infos.first,
-            let bounds = info[kCGWindowBounds as String] as? NSDictionary
-        else {
-            return nil
-        }
-        return CGRect(dictionaryRepresentation: bounds)
+        items().first { $0.windowID == windowID }?.frame
     }
 
     /// Whether the process owns an on-screen menu or popover window.
