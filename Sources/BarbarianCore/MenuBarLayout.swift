@@ -44,6 +44,10 @@ public struct MenuBarLayout: Sendable, Equatable {
 
     public let controls: ControlItemIDs
 
+    /// Items right of Barbarian's icon, left to right. They belong to macOS
+    /// and are not managed.
+    public let systemItems: [MenuBarItem]
+
     /// The left edge of the leftmost drawn item up to Barbarian's icon,
     /// dividers included.
     private let leftmostOnScreenX: CGFloat
@@ -68,6 +72,9 @@ public struct MenuBarLayout: Sendable, Equatable {
             defer { dividersSeen += 1 }
             return .divider(dividersSeen == 0 ? .alwaysHidden : .hidden, item.windowID)
         }
+        systemItems = placed
+            .filter { $0.frame.minX > icon.frame.minX }
+            .sorted { $0.frame.minX < $1.frame.minX }
         unplacedItems = items.filter { !$0.hasReportedPosition && !controls.dividers.contains($0.windowID) }
         leftmostOnScreenX = (managed + [icon]).filter(\.isOnScreen).map(\.frame.minX).min() ?? icon.frame.minX
     }
@@ -136,38 +143,24 @@ public struct MenuBarLayout: Sendable, Equatable {
         return .leftOf(neighbor)
     }
 
-    /// Where to drop `item` so it becomes the rightmost item of `section`.
-    public func destination(appending item: WindowID, to section: MenuBarSection) -> MoveDestination? {
-        let rightBoundary: WindowID? = switch section {
-        case .alwaysHidden: windowID(of: .alwaysHidden)
-        case .hidden: windowID(of: .hidden)
-        case .shown: controls.icon
-        }
-        guard let rightBoundary else { return nil }
-        if rightBoundary == controls.icon {
-            return entries.last?.id == item ? nil : .leftOf(rightBoundary)
-        }
-        return destination(placing: item, before: rightBoundary)
-    }
-
-    /// Where to drop `item` so it lands at `index` among the other items of
-    /// `section`, counting from the left.
+    /// Where to drop `entry`, an item or a divider, so it lands at `index`
+    /// among the other entries, counting from the left.
     ///
-    /// The move aims at the item that will sit on its right. Items in
-    /// `unreliableNeighbors`, such as ones their app is not drawing, report
-    /// stale frames, so the move aims past them at the next item instead.
+    /// The move aims at the entry that will sit on its right, or at
+    /// Barbarian's icon past the last entry. Items in `unreliableNeighbors`,
+    /// such as ones their app is not drawing, report stale frames, so the
+    /// move aims past them at the next entry instead.
     public func destination(
-        inserting item: WindowID,
-        into section: MenuBarSection,
-        at index: Int,
+        moving entry: WindowID,
+        to index: Int,
         unreliableNeighbors: Set<WindowID> = []
     ) -> MoveDestination? {
-        let others = items(in: section).map(\.windowID).filter { $0 != item }
+        let others = entries.map(\.id).filter { $0 != entry }
         let rightNeighbor = others.dropFirst(min(index, others.count)).first { !unreliableNeighbors.contains($0) }
         if let rightNeighbor {
-            return destination(placing: item, before: rightNeighbor)
+            return destination(placing: entry, before: rightNeighbor)
         }
-        return destination(appending: item, to: section)
+        return entries.last?.id == entry ? nil : .leftOf(controls.icon)
     }
 }
 

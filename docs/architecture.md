@@ -4,7 +4,7 @@ Barbarian is a Swift package with three targets. The app is a menu bar agent wit
 
 | Target | Holds | Depends on |
 |---|---|---|
-| `BarbarianCore` | Models and decisions as plain values: `MenuBarItem`, `MenuBarMembership`, `MenuBarLayout`, `HidingState`, `AutoRehidePolicy`, `MoveDestination` | Core Graphics geometry only |
+| `BarbarianCore` | Models and decisions as plain values: `MenuBarItem`, `MenuBarMembership`, `MenuBarLayout`, `ArrangeStrip`, `HidingState`, `AutoRehidePolicy`, `MoveDestination` | Core Graphics geometry only |
 | `BarbarianSystem` | macOS adapters: `MenuBarDisplay`, `MenuBarWindowList`, `MenuBarItemImages`, `ScreenRecordingPermission`, `AppMenus`, `MenuBarItemEvents`, `AccessibilityPermission`, `AccessibilityItemNames`, `GlobalHotKey` | Core |
 | `BarbarianApp` | `AppController`, `ControlItems`, `ItemsMenu`, `ItemAccess`, `ItemImageCache`, the layout window, `CommandChannel` | Core and System |
 
@@ -16,7 +16,7 @@ Barbarian is a Swift package with three targets. The app is a menu bar agent wit
 - **Control items**: Barbarian's own three items. The icon sits rightmost of the items Barbarian manages. Two dividers sit to its left.
 - **Section**: Shown, Hidden or Always Hidden. Items left of the left divider are Always Hidden. Items between the dividers are Hidden. Items between the right divider and the icon are Shown. Items right of the icon belong to macOS (Control Center, Siri, the clock) and are not managed.
 - **Collapsed divider**: a divider stretched to 10,000 points. macOS lays out everything to its left off screen.
-- **Active menu bar**: the menu bar of the display with keyboard focus. With several displays, each has a menu bar and each item has a window in every one. The item's own window sits in the active menu bar and the rest are copies. Barbarian reads, moves and clicks items in the active menu bar.
+- **Active menu bar**: the menu bar of the display in use. Barbarian finds it as the menu bar holding its own icon's window. With several displays, each has a menu bar and each item has a window in every one. The item's own window sits in the active menu bar and the rest are copies. Barbarian reads, moves and clicks items in the active menu bar.
 - **Unplaced item**: an item macOS gives no position, because it does not fit or its app has hidden it.
 
 ## How each feature works
@@ -35,17 +35,9 @@ Barbarian is a Swift package with three targets. The app is a menu bar agent wit
 
 **Moving items.** `MenuBarItemEvents.move` posts a Command-mouse-down addressed to the item's window, then a mouse-up addressed to the target item's window at the target's edge. That is the system's own Command-drag gesture. The window fields deliver the events even when the item is off screen. It retries up to three times, checking whether the item's frame changed. The pointer is hidden during the move and put back afterwards.
 
-**The layout window.** Arrange Menu Bar shows each section's items in menu bar order, wrapping left to right. `ArrangeGrid` in Core computes every section's and slot's frame. The window draws items at those frames and hit-tests the pointer against them, never against the frames items are animating through, so an item sliding under the pointer cannot change the drop target. All items sit in one SwiftUI view keyed by window ID, so an item dragged into another section slides there as one move.
+**The layout window.** Arrange Menu Bar shows the managed part of the menu bar as one strip, left to right: Always Hidden, the left divider, Hidden, the right divider, Shown, then Barbarian's icon and macOS's own items for context. `ArrangeStrip` in Core computes every entry's frame and each section's span. The window draws entries at those frames and hit-tests the dragged entry's center against a strip without it, never against the frames entries are animating through, so an entry sliding under the pointer cannot change the drop target. All entries sit in one SwiftUI view keyed by window ID, so a dropped entry slides into place as one move.
 
-While you drag, the item follows the pointer and the others spring aside to open a gap at the drop target. On drop, `MenuBarLayout.destination(inserting:into:at:unreliableNeighbors:)` picks the move. It aims past items their app is not drawing, whose frames are stale. The window keeps showing the dropped order until the menu bar reports it, for up to 2 seconds, so the item does not jump back while the move runs. Items not in the menu bar cannot be dragged. Each dimmed item says why: "Not showing" when its app is not drawing it, "Doesn't fit" otherwise. While the window is open every section is revealed and stays revealed.
-
-**Settings.** `SettingsWindowController` shows how the sections work, the rehide delay, hover, both shortcuts and the permissions. `Preferences` saves the choices in user defaults. The window opens by itself the first time Barbarian runs, so the dividers are explained before anyone wonders about them. While a shortcut is being recorded, Barbarian's shortcuts are switched off.
-
-**Errors.** A failure to open an item shows a short message in a popover under the icon, naming the item. It closes by itself. A missing permission still asks with an alert, because it offers a choice.
-
-**Launch at login.** `LaunchAtLogin` registers the app with `SMAppService`. Barbarian turns it on the first time it runs, because after a restart without it every item shows until Barbarian is opened. Turning it off in Settings sticks.
-
-**The icons.** `BattleAxeIcon` draws the axe in code, since SF Symbols has no axe. The menu bar icon is the axe as a template image. `AppIconRenderer` draws the app icon from the same axe, and `scripts/make-app-icon.sh` saves it as `Resources/AppIcon.icns`, which `scripts/build-app.sh` copies into the app.
+Items and both dividers can be dragged. Dragging a divider moves Barbarian's own status item, which changes which items are in which section. On drop, `MenuBarLayout.destination(moving:to:unreliableNeighbors:)` picks the move. It aims past items their app is not drawing, whose frames are stale. The window keeps showing the dropped order until the menu bar reports it, for up to 2 seconds, so the entry does not jump back while the move runs. Items their app is not drawing are drawn small with a dotted outline and cannot be dragged. Items that don't fit are dimmed and say so. Items with no place in the menu bar are left out; the items menu still lists them. While the window is open every section is revealed and stays revealed.
 
 **Commands.** `Barbarian --command <name>` posts a distributed notification that the running app handles. Scripts and agents use it to drive the app without clicking.
 

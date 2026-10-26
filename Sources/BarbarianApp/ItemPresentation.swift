@@ -16,10 +16,14 @@ struct ItemPresentation {
     }
 
     /// The app's name, unless the app owns several items, as Control Center
-    /// does. Then the item's own name, when Barbarian can read it.
+    /// does, or is a background process whose name nobody knows, such as
+    /// SystemUIServer for Siri. Then the item's own name, when Barbarian can
+    /// read it.
     func name(of item: MenuBarItem) -> String {
-        let appName = NSRunningApplication(processIdentifier: item.ownerPID)?.localizedName ?? item.ownerName
-        guard itemCountByOwner[item.ownerPID, default: 0] > 1 else { return appName }
+        let app = NSRunningApplication(processIdentifier: item.ownerPID)
+        let appName = app?.localizedName ?? item.ownerName
+        let isBackgroundProcess = app?.activationPolicy == .prohibited
+        guard itemCountByOwner[item.ownerPID, default: 0] > 1 || isBackgroundProcess else { return appName }
         if let title = item.title, let systemName = Self.systemItemNames[title] { return systemName }
         if let name = accessibilityNames[item.windowID] { return name }
         if let title = item.title, !title.hasPrefix(Self.untitledWindowPrefix) { return title }

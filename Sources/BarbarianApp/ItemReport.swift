@@ -26,6 +26,22 @@ enum ItemReport {
     }
 }
 
+extension MenuBarWindowList {
+    /// The active menu bar's items, as a separate process can find them: the
+    /// running Barbarian's icon window is the one titled with its autosave
+    /// name, and window titles need Screen Recording, which the terminal
+    /// running these commands has.
+    static func itemsInRunningBarbarianMenuBar() -> (items: [MenuBarItem], display: MenuBarDisplay)? {
+        guard
+            let icon = allWindows().first(where: { $0.ownerName == "Barbarian" && $0.title == ControlItems.iconAutosaveName }),
+            let display = MenuBarDisplay.holding(icon.frame)
+        else {
+            return nil
+        }
+        return (items(in: display), display)
+    }
+}
+
 extension MenuBarLayout {
     /// The layout read without knowing Barbarian's control items' IDs, as a
     /// separate process must, and as Barbarian must for a menu bar that holds

@@ -3,51 +3,50 @@ import BarbarianCore
 import BarbarianSystem
 import SwiftUI
 
-/// `Barbarian --render-arrange <file.png> [--lift <window ID> <section> <index>]`
-/// draws the Arrange window's items for the current menu bar to a PNG,
-/// without opening a window. `--lift` draws one item mid-drag over the gap it
-/// would open at `index` in `section` (shown, hidden or alwaysHidden).
+/// `Barbarian --render-arrange <file.png> [--lift <window ID> <index>]` draws
+/// the Arrange window's strip for the current menu bar to a PNG, without
+/// opening a window. `--lift` draws one item or divider mid-drag over the gap
+/// it would open at `index` among the other entries.
 enum ArrangeSnapshot {
-    private static let width: CGFloat = 600
 
     static func run(arguments: [String]) -> Int32 {
         guard let flag = arguments.firstIndex(of: "--render-arrange"), flag + 1 < arguments.count else {
-            return fail("usage: Barbarian --render-arrange <file.png> [--lift <window ID> <section> <index>]")
+            return fail("usage: Barbarian --render-arrange <file.png> [--lift <window ID> <index>]")
         }
         let output = URL(fileURLWithPath: arguments[flag + 1])
-        captureItemImages()
-        let items = MenuBarWindowList.items()
-        guard let layout = MenuBarLayout(runningBarbarianIn: items) else {
+        guard
+            let (items, display) = MenuBarWindowList.itemsInRunningBarbarianMenuBar(),
+            let layout = MenuBarLayout(runningBarbarianIn: items)
+        else {
             return fail("Barbarian is not running, or its three status items were not found.")
         }
+        captureImages(of: items)
+        let presentation = ItemPresentation(items: layout.entries.compactMap(\.item) + layout.systemItems)
 
-        var drag: ItemDrag?
+        var drag: EntryDrag?
         if let lift = arguments.firstIndex(of: "--lift") {
             guard
-                lift + 3 < arguments.count,
+                lift + 2 < arguments.count,
                 let id = WindowID(arguments[lift + 1]),
-                let item = layout.entries.compactMap(\.item).first(where: { $0.windowID == id }),
-                let section = MenuBarSection(rawValue: arguments[lift + 2]),
-                let index = Int(arguments[lift + 3])
+                let entry = layout.entries.first(where: { $0.id == id }),
+                let index = Int(arguments[lift + 2])
             else {
-                return fail("--lift takes a managed item's window ID, a section and an index.")
+                return fail("--lift takes a managed item's or divider's window ID and an index.")
             }
-            drag = liftedDrag(of: item, to: .init(section: section, index: index), in: layout)
+            drag = liftedDrag(of: entry, to: index, in: layout, presentation: presentation, visibleStatusArea: display.statusArea)
         }
 
-        let visibleStatusArea = AppController.visibleStatusArea()
-        let canvas = ArrangeCanvas(
-            sections: ArrangeSection.sections(from: layout, pendingOrder: nil, drag: drag),
-            presentation: ItemPresentation(items: layout.entries.compactMap(\.item) + layout.unplacedItems),
+        let content = ArrangeContent(
+            layout: layout,
+            pendingOrder: nil,
             drag: drag,
-            canDrag: true,
-            note: { ArrangeSection.offScreenNote(for: $0, in: $1, layout: layout, visibleStatusArea: visibleStatusArea) },
-            initialWidth: width
+            presentation: presentation,
+            visibleStatusArea: display.statusArea
         )
+        let canvas = ArrangeCanvas(content: content, presentation: presentation, drag: drag, canDrag: true)
         let isDark = NSApplication.shared.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let renderer = ImageRenderer(
             content: canvas
-                .frame(width: width)
                 .padding(20)
                 .background(Color(nsColor: .windowBackgroundColor))
                 .environment(\.colorScheme, isDark ? .dark : .light)
@@ -67,28 +66,33 @@ enum ArrangeSnapshot {
         return 0
     }
 
-    /// A drag whose item hovers just off its target slot, as it would under
-    /// the pointer.
-    private static func liftedDrag(of item: MenuBarItem, to target: ItemDrag.Target, in layout: MenuBarLayout) -> ItemDrag {
-        let placeholder = ItemDrag(item: item, pointer: .zero, grabOffset: .zero, target: target)
-        let sections = ArrangeSection.sections(from: layout, pendingOrder: nil, drag: placeholder)
-        let grid = ArrangeGrid(width: width, slotCounts: sections.map(\.items.count), metrics: .arrange)
-        var slot = CGRect.zero
-        for (sectionIndex, section) in sections.enumerated() {
-            if let index = section.items.firstIndex(where: { $0.windowID == item.windowID }) {
-                slot = grid.sections[sectionIndex].slotFrames[index]
-            }
-        }
-        return ItemDrag(item: item, pointer: CGPoint(x: slot.midX + 14, y: slot.midY + 10), grabOffset: .zero, target: target)
+    /// A drag whose entry hovers just off its target, as it would under the
+    /// pointer.
+    private static func liftedDrag(
+        of entry: MenuBarLayout.Entry,
+        to index: Int,
+        in layout: MenuBarLayout,
+        presentation: ItemPresentation,
+        visibleStatusArea: ClosedRange<CGFloat>
+    ) -> EntryDrag {
+        let placeholder = EntryDrag(entry: entry, pointer: .zero, grabOffset: .zero, targetIndex: index)
+        let content = ArrangeContent(
+            layout: layout,
+            pendingOrder: nil,
+            drag: placeholder,
+            presentation: presentation,
+            visibleStatusArea: visibleStatusArea
+        )
+        let frame = content.entries.firstIndex(of: entry).map { content.strip.frames[$0] } ?? .zero
+        return EntryDrag(entry: entry, pointer: CGPoint(x: frame.midX + 12, y: frame.midY), grabOffset: .zero, targetIndex: index)
     }
 
     /// Fills `ItemImageCache` before drawing, when this process has Screen
     /// Recording permission.
-    private static func captureItemImages() {
-        _ = NSApplication.shared
+    private static func captureImages(of items: [MenuBarItem]) {
         var isDone = false
         Task {
-            await ItemImageCache.shared.captureNow()
+            await ItemImageCache.shared.capture(items)
             isDone = true
         }
         while !isDone {

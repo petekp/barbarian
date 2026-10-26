@@ -9,18 +9,19 @@ public struct MenuBarDisplay: Sendable, Equatable {
     public let statusArea: ClosedRange<CGFloat>
     public let menuBarHeight: CGFloat
 
-    /// The display whose menu bar is active: the one with keyboard focus.
-    /// Menu bar items' own windows sit in this menu bar.
-    public static var active: MenuBarDisplay? {
-        guard NSScreen.screensHaveSeparateSpaces else { return all.first }
-        return NSScreen.main.flatMap(MenuBarDisplay.init)
-    }
-
     /// Every display with a menu bar. Without "Displays have separate
     /// Spaces", only the main display has one.
     public static var all: [MenuBarDisplay] {
         let screens = NSScreen.screensHaveSeparateSpaces ? NSScreen.screens : Array(NSScreen.screens.prefix(1))
         return screens.compactMap(MenuBarDisplay.init)
+    }
+
+    /// The display whose menu bar holds a window with this frame. Given the
+    /// frame of the window behind Barbarian's icon, which is the icon's own
+    /// window and never a copy, this is the active menu bar. `NSScreen.main`
+    /// is not a substitute: it can name another display.
+    public static func holding(_ windowFrame: CGRect) -> MenuBarDisplay? {
+        all.first { $0.bounds.minY == windowFrame.minY && $0.bounds.minX <= windowFrame.midX && windowFrame.midX <= $0.bounds.maxX }
     }
 
     /// The display whose menu bar contains `point`, if any.

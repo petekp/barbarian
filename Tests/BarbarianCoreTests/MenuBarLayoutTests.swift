@@ -87,23 +87,6 @@ private func layout(_ items: [MenuBarItem]) throws -> MenuBarLayout {
     #expect(bar.destination(placing: 2, before: 2) == nil)
 }
 
-@Test func appendingToASectionDropsLeftOfItsRightBoundary() throws {
-    let bar = try layout([
-        item(1, x: 900),
-        item(102, x: 930, width: 14),
-        item(2, x: 944),
-        item(101, x: 974, width: 14),
-        item(3, x: 988),
-        item(100, x: 1018),
-    ])
-
-    #expect(bar.destination(appending: 3, to: .alwaysHidden) == .leftOf(102))
-    #expect(bar.destination(appending: 1, to: .hidden) == .leftOf(101))
-    #expect(bar.destination(appending: 2, to: .hidden) == nil)
-    #expect(bar.destination(appending: 1, to: .shown) == .leftOf(100))
-    #expect(bar.destination(appending: 3, to: .shown) == nil)
-}
-
 @Test func anOffScreenItemRightOfADrawnItemIsHiddenByItsApp() throws {
     let visible: ClosedRange<CGFloat> = 848...1512
     let notDrawn = item(1, x: 1140, onScreen: false)
@@ -120,7 +103,7 @@ private func layout(_ items: [MenuBarItem]) throws -> MenuBarLayout {
     #expect(!bar.isHiddenByItsApp(collapsed, visibleStatusArea: visible))
 }
 
-@Test func insertingAtAnIndexAimsAtTheReliableItemOnItsRight() throws {
+@Test func movingToAnIndexAimsAtTheReliableEntryOnItsRight() throws {
     let bar = try layout([
         item(1, x: 900),
         item(102, x: 930, width: 14),
@@ -131,9 +114,11 @@ private func layout(_ items: [MenuBarItem]) throws -> MenuBarLayout {
         item(100, x: 1048),
     ])
 
-    #expect(bar.destination(inserting: 1, into: .shown, at: 0) == .leftOf(2))
-    #expect(bar.destination(inserting: 1, into: .shown, at: 1, unreliableNeighbors: [3]) == .leftOf(4))
-    #expect(bar.destination(inserting: 1, into: .shown, at: 3) == .leftOf(100))
-    #expect(bar.destination(inserting: 2, into: .shown, at: 0) == nil)
-    #expect(bar.destination(inserting: 2, into: .hidden, at: 0) == .leftOf(101))
+    #expect(bar.destination(moving: 1, to: 2) == .leftOf(2))
+    #expect(bar.destination(moving: 1, to: 3, unreliableNeighbors: [3]) == .leftOf(4))
+    #expect(bar.destination(moving: 1, to: 5) == .leftOf(100))
+    #expect(bar.destination(moving: 4, to: 5) == nil)
+    #expect(bar.destination(moving: 2, to: 3) == nil)
+    #expect(bar.destination(moving: 2, to: 2) == .leftOf(101))
+    #expect(bar.destination(moving: 101, to: 4) == .leftOf(4))
 }

@@ -2,9 +2,12 @@ import AppKit
 import BarbarianSystem
 
 let arguments = CommandLine.arguments
+// Screen and window server queries need the app object, even in the
+// commands below that exit without running it.
+let app = NSApplication.shared
 
 if arguments.contains("--print-items") {
-    ItemReport.print(MenuBarWindowList.items())
+    ItemReport.print(MenuBarWindowList.itemsInRunningBarbarianMenuBar()?.items ?? [])
     exit(0)
 }
 
@@ -29,7 +32,6 @@ if let flag = arguments.firstIndex(of: "--command") {
     exit(0)
 }
 
-let app = NSApplication.shared
 let controller = AppController()
 app.delegate = controller
 app.setActivationPolicy(.accessory)

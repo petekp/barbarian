@@ -10,7 +10,7 @@ final class ControlItems {
     private let dividers: [Divider: NSStatusItem]
 
     private static let collapsedDividerLength: CGFloat = 10_000
-    private static let iconAutosaveName = "BarbarianIcon"
+    static let iconAutosaveName = "BarbarianIcon"
 
     init() {
         Self.placeIconRightmostOnFirstLaunch()

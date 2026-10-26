@@ -13,7 +13,7 @@ enum ItemsMenu {
 
         if let layout {
             let presentation = ItemPresentation(items: layout.entries.compactMap(\.item) + layout.unplacedItems)
-            let visibleStatusArea = AppController.visibleStatusArea()
+            let visibleStatusArea = controller.visibleStatusArea()
             let isOffered = { (item: MenuBarItem) in !layout.isHiddenByItsApp(item, visibleStatusArea: visibleStatusArea) }
             for section in [MenuBarSection.shown, .hidden, .alwaysHidden] {
                 let items = layout.items(in: section).filter(isOffered)

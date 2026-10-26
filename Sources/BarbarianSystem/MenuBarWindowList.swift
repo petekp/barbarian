@@ -6,15 +6,15 @@ import BarbarianCore
 /// Needs no permission. Window titles of other apps come back only with
 /// Screen Recording permission.
 public enum MenuBarWindowList {
-    /// Every item in the active menu bar, in no particular order. Includes
+    /// Every item in `display`'s menu bar, in no particular order. Includes
     /// items that do not fit and are off screen. See `MenuBarMembership`.
-    public static func items() -> [MenuBarItem] {
-        guard let display = MenuBarDisplay.active else { return [] }
-        return items(in: display)
-    }
-
     public static func items(in display: MenuBarDisplay) -> [MenuBarItem] {
         MenuBarMembership.items(of: allWindows(), inMenuBarAt: display.bounds.minY)
+    }
+
+    /// The display whose menu bar holds `windowID`'s window.
+    public static func display(holding windowID: WindowID) -> MenuBarDisplay? {
+        frame(of: windowID).flatMap(MenuBarDisplay.holding)
     }
 
     /// One item's window, wherever it is.
@@ -50,7 +50,7 @@ public enum MenuBarWindowList {
     private static let maximumItemHeight: CGFloat = 60
 
     /// Status item windows in every display's menu bar.
-    private static func allWindows() -> [MenuBarItem] {
+    public static func allWindows() -> [MenuBarItem] {
         guard let infos = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] else {
             return []
         }

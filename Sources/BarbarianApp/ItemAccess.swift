@@ -36,7 +36,7 @@ final class ItemAccess {
 
     private func openWithEvents(_ item: MenuBarItem) async throws {
         guard let layout = controller.currentLayout() else { return }
-        let current = MenuBarWindowList.items().first { $0.windowID == item.windowID } ?? item
+        let current = MenuBarWindowList.item(item.windowID) ?? item
         if current.isOnScreen {
             try await MenuBarItemEvents.click(item.windowID, ownerPID: item.ownerPID)
             return
@@ -87,7 +87,7 @@ final class ItemAccess {
         }
         Task {
             try? await Task.sleep(for: .milliseconds(400))
-            let fits = MenuBarWindowList.items().first { $0.windowID == item.windowID }?.isOnScreen ?? false
+            let fits = MenuBarWindowList.item(item.windowID)?.isOnScreen ?? false
             if !fits { Self.askForAccessibility(itemName: ItemPresentation(items: [item]).name(of: item)) }
         }
     }

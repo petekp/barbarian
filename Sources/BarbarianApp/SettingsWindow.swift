@@ -204,7 +204,6 @@ enum SettingsSnapshot {
             FileHandle.standardError.write(Data("usage: Barbarian --render-settings <file.png>\n".utf8))
             return 1
         }
-        _ = NSApplication.shared
         let view = NSHostingView(rootView: SettingsView(preferences: .shared, onShortcutRecording: { _ in }))
         view.frame = NSRect(origin: .zero, size: view.fittingSize)
         view.layoutSubtreeIfNeeded()

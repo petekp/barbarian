@@ -49,16 +49,31 @@ final class AppController: NSObject, NSApplicationDelegate {
         case .openLayout: openLayoutWindow()
         case .closeLayout: layoutWindow.close()
         case .openItem(let id):
-            guard let item = MenuBarWindowList.items().first(where: { $0.windowID == id }) else { return }
+            guard let item = MenuBarWindowList.item(id) else { return }
             access(item)
         }
     }
 
     // MARK: Reading the menu bar
 
+    /// The display with the active menu bar: the one holding Barbarian's
+    /// icon. Menu bar items' own windows are there.
+    var activeDisplay: MenuBarDisplay? {
+        controlItems.icon.windowID.flatMap(MenuBarWindowList.display(holding:))
+    }
+
     func currentLayout() -> MenuBarLayout? {
-        guard let ids = controlItems.ids else { return nil }
-        return MenuBarLayout(items: MenuBarWindowList.items(), controls: ids)
+        guard let ids = controlItems.ids, let display = activeDisplay else { return nil }
+        return MenuBarLayout(items: MenuBarWindowList.items(in: display), controls: ids)
+    }
+
+    /// The x range where status items can appear in the active menu bar.
+    func visibleStatusArea() -> ClosedRange<CGFloat> {
+        activeDisplay?.statusArea ?? 0...0
+    }
+
+    private func activeMenuBarItems() -> [MenuBarItem] {
+        activeDisplay.map(MenuBarWindowList.items(in:)) ?? []
     }
 
     // MARK: Hiding and revealing
@@ -77,7 +92,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     private func captureRevealedItems() {
         Task {
             try? await Task.sleep(for: .milliseconds(600))
-            ItemImageCache.shared.refresh(force: true)
+            ItemImageCache.shared.refresh(items: activeMenuBarItems, force: true)
         }
     }
 
@@ -153,7 +168,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         let now = Date()
         let pointerInMenuBar = Self.isPointerInMenuBar()
         if pointerInMenuBar { pointerLastInMenuBarAt = now }
-        ItemImageCache.shared.refresh()
+        ItemImageCache.shared.refresh(items: activeMenuBarItems)
 
         if state == .showingShownOnly {
             revealIfHovering(now: now)
@@ -175,7 +190,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     /// collapsed Hidden divider, between the app's menus and the items.
     private func revealIfHovering(now: Date) {
         let hoverDelay: TimeInterval = 0.4
-        guard Preferences.shared.revealsOnHover, let region = Self.hoverRegion(), region.contains(MenuBarDisplay.pointerLocation) else {
+        guard Preferences.shared.revealsOnHover, let region = hoverRegion(), region.contains(MenuBarDisplay.pointerLocation) else {
             hoverStartedAt = nil
             return
         }
@@ -192,7 +207,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     /// The empty stretch of the menu bar under the pointer. On a display
     /// without a notch, the app's menus come from Accessibility, and without
     /// it there is no telling where the empty stretch starts.
-    private static func hoverRegion() -> CGRect? {
+    private func hoverRegion() -> CGRect? {
         guard
             let display = MenuBarDisplay.withMenuBar(containing: MenuBarDisplay.pointerLocation),
             let layout = MenuBarLayout(runningBarbarianIn: MenuBarWindowList.items(in: display)),
@@ -202,18 +217,13 @@ final class AppController: NSObject, NSApplicationDelegate {
             return nil
         }
         let hasNotch = display.statusArea.lowerBound > display.bounds.minX
-        let appMenusEnd = MenuBarDisplay.active
+        let appMenusEnd = activeDisplay
             .flatMap { AppMenus.width(onActiveDisplayAt: $0.bounds.minX) }
             .map { display.bounds.minX + $0 }
         guard hasNotch || appMenusEnd != nil else { return nil }
         let left = max(display.statusArea.lowerBound, appMenusEnd ?? display.bounds.minX)
         let region = CGRect(x: left, y: display.bounds.minY, width: divider.maxX - left, height: display.menuBarHeight)
         return region.width > 0 ? region : nil
-    }
-
-    /// The x range where status items can appear in the active menu bar.
-    static func visibleStatusArea() -> ClosedRange<CGFloat> {
-        MenuBarDisplay.active?.statusArea ?? 0...0
     }
 
     static func isPointerInMenuBar() -> Bool {
