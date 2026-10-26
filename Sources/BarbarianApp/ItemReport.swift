@@ -12,14 +12,14 @@ enum ItemReport {
         }
         let items = barbarian.menuBar.items
         let layout = barbarian.layout
-        let accessibilityNames = AccessibilityItemNames.names(for: items)
+        let accessibilityLabels = AccessibilityItemLabels.labels(for: items)
         for item in items.sorted(by: { ($0.frame.minX, $0.windowID) < ($1.frame.minX, $1.windowID) }) {
             let section = layout?.section(of: item.windowID)?.rawValue ?? (layout?.controls.icon == item.windowID ? "icon" : "-")
             let fields = [
                 "\(item.windowID)",
                 item.ownerName,
                 item.title ?? "-",
-                accessibilityNames[item.windowID] ?? "-",
+                accessibilityLabels[item.windowID]?.name ?? "-",
                 "x=\(Int(item.frame.minX))",
                 "w=\(Int(item.frame.width))",
                 item.isOnScreen ? "on" : "off",

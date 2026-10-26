@@ -6,9 +6,11 @@ import BarbarianSystem
 ///
 /// Names are worked out once, when the presentation is made. An item is
 /// drawn with its own image when `images` has one, which needs Screen
-/// Recording permission, and with its app's icon otherwise.
+/// Recording permission. Otherwise one of macOS's own items is drawn with a
+/// symbol that looks like it, and any other item with its app's icon.
 struct ItemPresentation {
     private let names: [WindowID: String]
+    private let symbolNames: [WindowID: String]
     private let images: ItemImageCache?
 
     init(layout: MenuBarLayout?, images: ItemImageCache?) {
@@ -17,33 +19,48 @@ struct ItemPresentation {
 
     init(items: [MenuBarItem], images: ItemImageCache?) {
         self.images = images
-        let accessibilityNames = AccessibilityItemNames.names(for: items)
+        let accessibilityLabels = AccessibilityItemLabels.labels(for: items)
         let itemCountByOwner = items.reduce(into: [Int32: Int]()) { $0[$1.ownerPID, default: 0] += 1 }
-        names = Dictionary(items.map { item in
+        var names: [WindowID: String] = [:]
+        var symbolNames: [WindowID: String] = [:]
+        for item in items {
             let app = NSRunningApplication(processIdentifier: item.ownerPID)
-            let name = ItemNaming.name(
+            let label = accessibilityLabels[item.windowID]
+            names[item.windowID] = ItemNaming.name(
                 appName: app?.localizedName ?? item.ownerName,
                 isSystemProcess: app?.bundleURL?.path.hasPrefix("/System/") ?? false,
                 appItemCount: itemCountByOwner[item.ownerPID, default: 0],
                 title: item.title,
-                accessibilityName: accessibilityNames[item.windowID]
+                accessibilityName: label?.name
             )
-            return (item.windowID, name)
-        }, uniquingKeysWith: { first, _ in first })
+            symbolNames[item.windowID] = SystemItemSymbols.symbolName(
+                accessibilityIdentifier: label?.identifier,
+                title: item.title,
+                bundleIdentifier: app?.bundleIdentifier
+            )
+        }
+        self.names = names
+        self.symbolNames = symbolNames
     }
 
     func name(of item: MenuBarItem) -> String {
         names[item.windowID] ?? item.ownerName
     }
 
-    /// The item's own image, scaled down to fit `size` points high, or its
-    /// app's icon at `size` points square.
+    /// The item's own image scaled down to fit `size` points high, a symbol
+    /// that looks like the item, or its app's icon at `size` points square.
     func icon(of item: MenuBarItem, size: CGFloat = 16) -> NSImage? {
         if let captured = images?.image(of: item.windowID) {
             let image = captured.copy() as! NSImage
             let scale = min(1, size / captured.size.height)
             image.size = NSSize(width: captured.size.width * scale, height: captured.size.height * scale)
             return image
+        }
+        if let symbolName = symbolNames[item.windowID],
+           let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: name(of: item))?
+               .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: size * 0.8, weight: .regular)) {
+            symbol.isTemplate = true
+            return symbol
         }
         guard let icon = NSRunningApplication(processIdentifier: item.ownerPID)?.icon?.copy() as? NSImage else {
             return nil
