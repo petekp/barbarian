@@ -1,0 +1,24 @@
+import ApplicationServices
+
+extension AXUIElement {
+    func attribute<Value>(_ name: String) -> Value? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(self, name as CFString, &value) == .success else { return nil }
+        return value as? Value
+    }
+
+    /// The element's frame in window-list coordinates.
+    var frame: CGRect? {
+        guard
+            let positionValue: AXValue = attribute(kAXPositionAttribute),
+            let sizeValue: AXValue = attribute(kAXSizeAttribute)
+        else {
+            return nil
+        }
+        var position = CGPoint.zero
+        var size = CGSize.zero
+        AXValueGetValue(positionValue, .cgPoint, &position)
+        AXValueGetValue(sizeValue, .cgSize, &size)
+        return CGRect(origin: position, size: size)
+    }
+}

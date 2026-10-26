@@ -31,6 +31,6 @@ These need Accessibility permission or a real pointer, which no check has had.
 ## Known gaps
 
 - "Not in the Menu Bar" also lists items whose app has switched them off, such as the input source menu. macOS reports them the same way as items that do not fit.
-- Only the main display's menu bar is managed.
+- With two displays whose menu bars have the same height, copies of items their app is not drawing show up as extra entries. See `MenuBarMembership`.
 - A Control Center item that is not drawn, such as Focus with no Focus on, has no Accessibility element. Barbarian names it "Control Center".
 - An Accessibility name can include the item's status, as Wi-Fi's does, so it changes while you watch.

@@ -5,7 +5,9 @@ public typealias WindowID = UInt32
 /// One status item window in the menu bar, as the window server reports it.
 ///
 /// `frame` is in global display coordinates with the origin at the top left
-/// of the main display, the convention Core Graphics window lists use.
+/// of the main display, the convention Core Graphics window lists use. An
+/// item in another display's menu bar has that display's coordinates, such
+/// as a negative y for a display above the main one.
 public struct MenuBarItem: Hashable, Sendable, Identifiable {
     public let windowID: WindowID
     public let ownerPID: Int32

@@ -139,17 +139,12 @@ final class AppController: NSObject, NSApplicationDelegate {
         if shouldRehide { setState(.showingShownOnly) }
     }
 
-    /// Reveals the Hidden section when the pointer rests on the visible part
-    /// of the collapsed Hidden divider, which is the empty stretch of menu
-    /// bar left of the shown items.
+    /// Reveals the Hidden section when the pointer rests on the empty
+    /// stretch of a menu bar left of the shown items: the visible part of the
+    /// collapsed Hidden divider, between the app's menus and the items.
     private func revealIfHovering(now: Date) {
         let hoverDelay: TimeInterval = 0.4
-        guard Self.isPointerInMenuBar(), let divider = hiddenDividerVisibleFrame() else {
-            hoverStartedAt = nil
-            return
-        }
-        let pointer = Self.pointerLocationInWindowListCoordinates()
-        guard divider.contains(pointer) else {
+        guard let region = Self.hoverRegion(), region.contains(MenuBarDisplay.pointerLocation) else {
             hoverStartedAt = nil
             return
         }
@@ -163,43 +158,35 @@ final class AppController: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func hiddenDividerVisibleFrame() -> CGRect? {
+    /// The empty stretch of the menu bar under the pointer. On a display
+    /// without a notch, the app's menus come from Accessibility, and without
+    /// it there is no telling where the empty stretch starts.
+    private static func hoverRegion() -> CGRect? {
         guard
-            let layout = currentLayout(),
+            let display = MenuBarDisplay.withMenuBar(containing: MenuBarDisplay.pointerLocation),
+            let layout = MenuBarLayout(runningBarbarianIn: MenuBarWindowList.items(in: display)),
             let dividerID = layout.windowID(of: .hidden),
-            let frame = MenuBarWindowList.frame(of: dividerID)
+            let divider = MenuBarWindowList.frame(of: dividerID)
         else {
             return nil
         }
-        let statusArea = Self.visibleStatusArea()
-        let statusAreaRect = CGRect(x: statusArea.lowerBound, y: 0, width: statusArea.upperBound - statusArea.lowerBound, height: frame.height)
-        let visible = frame.intersection(statusAreaRect)
-        return visible.isEmpty ? nil : visible
+        let hasNotch = display.statusArea.lowerBound > display.bounds.minX
+        let appMenusEnd = MenuBarDisplay.active
+            .flatMap { AppMenus.width(onActiveDisplayAt: $0.bounds.minX) }
+            .map { display.bounds.minX + $0 }
+        guard hasNotch || appMenusEnd != nil else { return nil }
+        let left = max(display.statusArea.lowerBound, appMenusEnd ?? display.bounds.minX)
+        let region = CGRect(x: left, y: display.bounds.minY, width: divider.maxX - left, height: display.menuBarHeight)
+        return region.width > 0 ? region : nil
     }
 
-    /// The display whose top-left corner is the origin of window-list
-    /// coordinates. `NSScreen.main` is the display with keyboard focus instead.
-    static var primaryScreen: NSScreen? { NSScreen.screens.first }
-
-    /// The x range where status items can appear on the primary display:
-    /// right of the notch when there is one.
+    /// The x range where status items can appear in the active menu bar.
     static func visibleStatusArea() -> ClosedRange<CGFloat> {
-        guard let screen = primaryScreen else { return 0...0 }
-        let leftEdge = screen.auxiliaryTopRightArea?.minX ?? 0
-        return leftEdge...screen.frame.width
+        MenuBarDisplay.active?.statusArea ?? 0...0
     }
 
     static func isPointerInMenuBar() -> Bool {
-        guard let screen = primaryScreen else { return false }
-        let pointer = NSEvent.mouseLocation
-        let menuBarHeight = screen.frame.maxY - screen.visibleFrame.maxY
-        return screen.frame.contains(pointer) && pointer.y >= screen.frame.maxY - max(menuBarHeight, 24)
-    }
-
-    /// The pointer in window-list coordinates: origin at the top left of the
-    /// main display, y growing downward.
-    static func pointerLocationInWindowListCoordinates() -> CGPoint {
-        CGEvent(source: nil)?.location ?? .zero
+        MenuBarDisplay.withMenuBar(containing: MenuBarDisplay.pointerLocation) != nil
     }
 
     // MARK: Hot keys

@@ -27,10 +27,10 @@ enum ItemReport {
 }
 
 extension MenuBarLayout {
-    /// The layout as a separate process sees it, which cannot ask the
-    /// running Barbarian for its control items' IDs. Barbarian's three
-    /// windows are, left to right, the Always Hidden divider, the Hidden
-    /// divider and the icon.
+    /// The layout read without knowing Barbarian's control items' IDs, as a
+    /// separate process must, and as Barbarian must for a menu bar that holds
+    /// copies of its windows. Barbarian's three windows are, left to right,
+    /// the Always Hidden divider, the Hidden divider and the icon.
     init?(runningBarbarianIn items: [MenuBarItem]) {
         let barbarianWindows = items
             .filter { $0.ownerName == "Barbarian" }

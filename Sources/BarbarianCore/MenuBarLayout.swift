@@ -173,7 +173,9 @@ public struct MenuBarLayout: Sendable, Equatable {
 
 extension MenuBarItem {
     /// macOS reports an item that does not fit at the origin and off screen.
+    /// The origin is the top left of the main display, so on a display above
+    /// or left of it an item can sit at x = 0 with another y.
     var hasReportedPosition: Bool {
-        isOnScreen || frame.minX != 0
+        isOnScreen || frame.origin != .zero
     }
 }

@@ -29,32 +29,21 @@ public enum AccessibilityItemNames {
         let app = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(app, messagingTimeout)
         guard
-            let extrasBar: AXUIElement = attribute(app, "AXExtrasMenuBar"),
-            let children: [AXUIElement] = attribute(extrasBar, kAXChildrenAttribute)
+            let extrasBar: AXUIElement = app.attribute("AXExtrasMenuBar"),
+            let children: [AXUIElement] = extrasBar.attribute(kAXChildrenAttribute)
         else {
             return []
         }
         return children.compactMap { child in
             guard
-                let positionValue: AXValue = attribute(child, kAXPositionAttribute),
-                let sizeValue: AXValue = attribute(child, kAXSizeAttribute),
-                let name = (attribute(child, kAXDescriptionAttribute) as String?)
-                    ?? (attribute(child, kAXTitleAttribute) as String?),
+                let frame = child.frame,
+                let name = (child.attribute(kAXDescriptionAttribute) as String?)
+                    ?? (child.attribute(kAXTitleAttribute) as String?),
                 !name.isEmpty
             else {
                 return nil
             }
-            var position = CGPoint.zero
-            var size = CGSize.zero
-            AXValueGetValue(positionValue, .cgPoint, &position)
-            AXValueGetValue(sizeValue, .cgSize, &size)
-            return (position.x + size.width / 2, name)
+            return (frame.midX, name)
         }
-    }
-
-    private static func attribute<Value>(_ element: AXUIElement, _ name: String) -> Value? {
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else { return nil }
-        return value as? Value
     }
 }
