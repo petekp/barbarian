@@ -18,6 +18,7 @@ Agents build and maintain all of it. Read these before changing behavior:
 | Redraw `Resources/AppIcon.icns` after changing the axe or the icon colors | `scripts/make-app-icon.sh` |
 | List the active menu bar's items with title, Accessibility name, position and section | `.build/debug/Barbarian --print-items` |
 | Render the Arrange window to a PNG without opening it, optionally mid-drag | `.build/debug/Barbarian --render-arrange <file.png> [--lift <window ID> <section> <index>]` |
+| Render the Settings window to a PNG without opening it | `.build/debug/Barbarian --render-settings <file.png>` |
 | Drive the running app | `.build/debug/Barbarian --command <name>` |
 
 `--command` takes `show-hidden`, `show-all`, `hide`, `open-menu`, `open-layout`, `close-layout` and `open-item <window ID>`. `open-item` opens an item as picking it from the menu does, so it moves and clicks other apps' items. Send build and test output to a log under `.build/logs/` and check the exit status.

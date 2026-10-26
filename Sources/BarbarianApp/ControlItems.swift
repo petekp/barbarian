@@ -42,9 +42,11 @@ final class ControlItems {
         return ControlItemIDs(icon: icon, hiddenDivider: hidden, alwaysHiddenDivider: alwaysHidden)
     }
 
-    /// Collapses or expands each divider for `state`. `layout` says which
-    /// divider currently plays which role; see `MenuBarLayout`.
+    /// Collapses or expands each divider for `state`, and highlights the icon
+    /// while a section is revealed. `layout` says which divider currently
+    /// plays which role; see `MenuBarLayout`.
     func apply(_ state: HidingState, layout: MenuBarLayout?) {
+        icon.button?.highlight(state != .showingShownOnly)
         for (identity, item) in dividers {
             guard let button = item.button else { continue }
             let divider = layout?.role(of: item.windowID) ?? identity

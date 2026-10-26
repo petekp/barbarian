@@ -40,7 +40,8 @@ enum ItemsMenu {
         addCommand("Show All Items", #selector(MenuTarget.showAll), to: menu, target: target, checked: controller.state == .showingAll)
         addCommand("Arrange Menu Bar…", #selector(MenuTarget.arrange), to: menu, target: target)
         menu.addItem(.separator())
-        addCommand("Open at Login", #selector(MenuTarget.toggleLaunchAtLogin), to: menu, target: target, checked: LaunchAtLogin.isEnabled)
+        addCommand("Settings…", #selector(MenuTarget.openSettings), to: menu, target: target, keyEquivalent: ",")
+        addCommand("About Barbarian", #selector(MenuTarget.showAbout), to: menu, target: target)
         addCommand("Quit Barbarian", #selector(NSApplication.terminate(_:)), to: menu, target: NSApp, keyEquivalent: "q")
         return menu
     }
@@ -98,14 +99,11 @@ private final class MenuTarget: NSObject {
         AccessibilityPermission.openSettings()
     }
 
-    @objc func toggleLaunchAtLogin() {
-        do {
-            try LaunchAtLogin.setEnabled(!LaunchAtLogin.isEnabled)
-        } catch {
-            let alert = NSAlert(error: error)
-            NSApp.activate()
-            alert.runModal()
-        }
+    @objc func openSettings() { controller?.openSettings() }
+
+    @objc func showAbout() {
+        NSApp.activate()
+        NSApp.orderFrontStandardAboutPanel(nil)
     }
 
     @objc func grantScreenRecording() {

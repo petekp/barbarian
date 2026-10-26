@@ -31,6 +31,8 @@ These need Accessibility permission or a real pointer, which no check has had.
 - Left-click, Option-click and right-click on the icon.
 - Item images inside the running app, which needs Barbarian to have Screen Recording.
 - Hover reveal on the Studio Display and the rest of the multi-display behavior inside the running app.
+- The Settings window inside the running app, its first-launch opening, and recording a shortcut. Its drawing was checked with `--render-settings`.
+- Launch at login, the icon's highlight while revealed, and the error popover.
 - Everything on macOS 26.
 
 ## Known gaps

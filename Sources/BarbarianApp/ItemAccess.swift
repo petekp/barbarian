@@ -29,7 +29,7 @@ final class ItemAccess {
             do {
                 try await openWithEvents(item)
             } catch {
-                Self.showError(error)
+                controller.showMessage(Self.message(for: error, opening: item))
             }
         }
     }
@@ -105,11 +105,21 @@ final class ItemAccess {
         }
     }
 
-    private static func showError(_ error: Error) {
-        let alert = NSAlert()
-        alert.messageText = "Barbarian couldn't open that item"
-        alert.informativeText = String(describing: error)
-        NSApp.activate()
-        alert.runModal()
+    private static func message(for error: Error, opening item: MenuBarItem) -> String {
+        let name = ItemPresentation(items: [item]).name(of: item)
+        switch error as? MenuBarItemEventError {
+        case .itemGone(let id) where id == item.windowID:
+            return "\(name) is no longer in the menu bar."
+        case .itemGone:
+            return "The menu bar changed while Barbarian was opening \(name). Try again."
+        case .modifierKeysHeld:
+            return "Release the modifier keys, then pick \(name) again."
+        case .moveDidNotLand:
+            return "Barbarian couldn't move \(name) into view. Try again."
+        case .accessibilityNotGranted:
+            return "Barbarian needs Accessibility permission to open \(name)."
+        case nil:
+            return "Barbarian couldn't open \(name)."
+        }
     }
 }

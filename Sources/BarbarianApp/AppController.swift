@@ -1,13 +1,11 @@
 import AppKit
 import BarbarianCore
 import BarbarianSystem
-import Carbon.HIToolbox
 
 /// Owns Barbarian's status items and decides what the menu bar shows.
 final class AppController: NSObject, NSApplicationDelegate {
     private var controlItems: ControlItems!
     private(set) var state: HidingState = .showingShownOnly
-    private var rehidePolicy = AutoRehidePolicy()
     private var pointerLastInMenuBarAt = Date()
     private var hoverStartedAt: Date?
     private var pollTimer: Timer?
@@ -16,6 +14,8 @@ final class AppController: NSObject, NSApplicationDelegate {
     private var commandObserver: NSObjectProtocol?
     private lazy var itemAccess = ItemAccess(controller: self)
     private lazy var layoutWindow = LayoutWindowController(controller: self)
+    private lazy var settingsWindow = SettingsWindowController(controller: self)
+    private let statusMessage = StatusMessage()
 
     /// Keeps every section on screen while the layout window is open.
     var isPinnedOpen = false {
@@ -36,6 +36,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         }
         registerHotKeys()
         LaunchAtLogin.enableOnFirstLaunch()
+        settingsWindow.showOnFirstLaunch()
         commandObserver = CommandChannel.listen { [weak self] in self?.perform($0) }
     }
 
@@ -88,6 +89,12 @@ final class AppController: NSObject, NSApplicationDelegate {
         controlItems.apply(state, layout: currentLayout())
     }
 
+    /// AppKit clears the icon's highlight when a click or menu on it ends,
+    /// after Barbarian has set it, so it is set again once that is done.
+    private func reapplyAfterClick() {
+        DispatchQueue.main.async { [weak self] in self?.apply() }
+    }
+
     @objc private func iconClicked() {
         guard let event = NSApp.currentEvent else { return }
         let wantsMenu = event.type == .rightMouseUp || event.modifierFlags.contains(.control)
@@ -98,6 +105,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         } else {
             toggle(.showingHidden)
         }
+        reapplyAfterClick()
     }
 
     /// Pops the menu up from Barbarian's icon. `performClick` returns once
@@ -107,6 +115,11 @@ final class AppController: NSObject, NSApplicationDelegate {
         controlItems.icon.menu = menu
         controlItems.icon.button?.performClick(nil)
         controlItems.icon.menu = nil
+        reapplyAfterClick()
+    }
+
+    func openSettings() {
+        settingsWindow.show()
     }
 
     func openLayoutWindow() {
@@ -115,6 +128,11 @@ final class AppController: NSObject, NSApplicationDelegate {
 
     func access(_ item: MenuBarItem) {
         itemAccess.open(item)
+    }
+
+    func showMessage(_ text: String) {
+        guard let button = controlItems.icon.button else { return }
+        statusMessage.show(text, below: button)
     }
 
     private func clickedOutsideBarbarian() {
@@ -142,6 +160,7 @@ final class AppController: NSObject, NSApplicationDelegate {
             return
         }
         guard !itemAccess.isBusy else { return }
+        let rehidePolicy = AutoRehidePolicy(delay: Preferences.shared.rehideDelay)
         let shouldRehide = rehidePolicy.shouldRehide(
             now: now,
             pointerLastInMenuBarAt: pointerLastInMenuBarAt,
@@ -156,7 +175,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     /// collapsed Hidden divider, between the app's menus and the items.
     private func revealIfHovering(now: Date) {
         let hoverDelay: TimeInterval = 0.4
-        guard let region = Self.hoverRegion(), region.contains(MenuBarDisplay.pointerLocation) else {
+        guard Preferences.shared.revealsOnHover, let region = Self.hoverRegion(), region.contains(MenuBarDisplay.pointerLocation) else {
             hoverStartedAt = nil
             return
         }
@@ -203,12 +222,22 @@ final class AppController: NSObject, NSApplicationDelegate {
 
     // MARK: Hot keys
 
-    private func registerHotKeys() {
-        let modifiers = controlKey | optionKey | cmdKey
-        let bindings: [(Int, () -> Void)] = [
-            (kVK_ANSI_B, { [weak self] in self?.toggle(.showingHidden) }),
-            (kVK_ANSI_M, { [weak self] in self?.showMenu() }),
+    func registerHotKeys() {
+        suspendHotKeys()
+        let preferences = Preferences.shared
+        let bindings: [(Shortcut?, () -> Void)] = [
+            (preferences.showHiddenShortcut, { [weak self] in self?.toggle(.showingHidden) }),
+            (preferences.itemsMenuShortcut, { [weak self] in self?.showMenu() }),
         ]
-        hotKeys = bindings.compactMap { GlobalHotKey(keyCode: $0.0, modifiers: modifiers, handler: $0.1) }
+        hotKeys = bindings.compactMap { shortcut, action in
+            shortcut.flatMap { GlobalHotKey(keyCode: $0.keyCode, modifiers: $0.carbonModifiers, handler: action) }
+        }
+    }
+
+    /// Stops the shortcuts while Settings records a new one, so typing the
+    /// current shortcut records it instead of running it.
+    func suspendHotKeys() {
+        hotKeys.forEach { $0.unregister() }
+        hotKeys = []
     }
 }
