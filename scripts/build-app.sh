@@ -1,0 +1,32 @@
+#!/bin/sh
+#
+# Builds Barbarian.app, signs it, and installs it at ~/Applications/Barbarian.app.
+#
+# macOS ties an Accessibility grant to the app's signature and path. Signing
+# every build with the same certificate and installing to the same path keeps
+# the grant across rebuilds. Override the certificate with
+# BARBARIAN_SIGNING_IDENTITY (a SHA-1 hash from `security find-identity -v -p codesigning`).
+#
+# Usage: scripts/build-app.sh [--release]
+
+set -eu
+
+repo=$(cd "$(dirname "$0")/.." && pwd)
+configuration=debug
+if [ "${1:-}" = "--release" ]; then configuration=release; fi
+identity=${BARBARIAN_SIGNING_IDENTITY:-DBB4644C848E988CCF04ED55ECFAC79F7E34BEDF}
+
+swift build --package-path "$repo" -c "$configuration"
+bin_path=$(swift build --package-path "$repo" -c "$configuration" --show-bin-path)
+
+bundle="$repo/.build/Barbarian.app"
+rm -rf "$bundle"
+mkdir -p "$bundle/Contents/MacOS"
+cp "$bin_path/Barbarian" "$bundle/Contents/MacOS/Barbarian"
+cp "$repo/Resources/Info.plist" "$bundle/Contents/Info.plist"
+codesign --force --sign "$identity" "$bundle"
+
+installed="$HOME/Applications/Barbarian.app"
+rm -rf "$installed"
+ditto "$bundle" "$installed"
+echo "$installed"
