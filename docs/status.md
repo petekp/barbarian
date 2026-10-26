@@ -12,6 +12,7 @@ Checked on macOS 15.7 on a 14-inch MacBook Pro with a notch, without Accessibili
 - The items menu lists items by section with app icons. It leaves out items whose app is not drawing them.
 - The layout window opens in front and shows one row per section in menu bar order.
 - `scripts/build-app.sh` signs with the same Apple Development certificate on every build.
+- The Arrange window's drawing, rendered with `--render-arrange` on 2026-10-26: sections wrap, dimmed items say "Not showing" or "Doesn't fit", and a lifted item opens a gap in its target section.
 - Item names read through Accessibility, checked with `--print-items` from a terminal that has Accessibility, on 2026-10-26. Control Center's drawn items get their own names, such as "Wi‑Fi, connected, 3 bars".
 
 ## Built, not yet verified
@@ -19,6 +20,7 @@ Checked on macOS 15.7 on a 14-inch MacBook Pro with a notch, without Accessibili
 These need Accessibility permission or a real pointer, which no check has had.
 
 - Moving items: dropping in the layout window, and the move-click-return sequence when opening an off-screen item from the menu.
+- Dragging in the layout window with a real pointer: the spring animations, the haptic tick and the grab pointer.
 - Clicking items with posted events.
 - Revealing Hidden by resting the pointer on the empty part of the bar.
 - Rehiding on a click outside the menu bar.
@@ -29,7 +31,6 @@ These need Accessibility permission or a real pointer, which no check has had.
 ## Known gaps
 
 - "Not in the Menu Bar" also lists items whose app has switched them off, such as the input source menu. macOS reports them the same way as items that do not fit.
-- The layout window still shows items whose app is not drawing them, dimmed.
 - Only the main display's menu bar is managed.
 - A Control Center item that is not drawn, such as Focus with no Focus on, has no Accessibility element. Barbarian names it "Control Center".
 - An Accessibility name can include the item's status, as Wi-Fi's does, so it changes while you watch.

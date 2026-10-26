@@ -104,11 +104,36 @@ private func layout(_ items: [MenuBarItem]) throws -> MenuBarLayout {
     #expect(bar.destination(appending: 3, to: .shown) == nil)
 }
 
-@Test func anOffScreenItemInsideTheVisibleBarIsHiddenByItsApp() {
+@Test func anOffScreenItemRightOfADrawnItemIsHiddenByItsApp() throws {
     let visible: ClosedRange<CGFloat> = 848...1512
+    let notDrawn = item(1, x: 1140, onScreen: false)
+    let drawn = item(2, x: 1100)
+    let doesNotFitAtTheLeftEdge = item(3, x: 862, onScreen: false)
+    let doesNotFitPastTheNotch = item(4, x: 830, onScreen: false)
+    let collapsed = item(5, x: -4_000, onScreen: false)
+    let bar = try layout([collapsed, doesNotFitPastTheNotch, doesNotFitAtTheLeftEdge, drawn, notDrawn, item(100, x: 1200)])
 
-    #expect(item(1, x: 1140, onScreen: false).isHiddenByItsApp(visibleStatusArea: visible))
-    #expect(!item(2, x: 1140, onScreen: true).isHiddenByItsApp(visibleStatusArea: visible))
-    #expect(!item(3, x: 842, onScreen: false).isHiddenByItsApp(visibleStatusArea: visible))
-    #expect(!item(4, x: -4_000, onScreen: false).isHiddenByItsApp(visibleStatusArea: visible))
+    #expect(bar.isHiddenByItsApp(notDrawn, visibleStatusArea: visible))
+    #expect(!bar.isHiddenByItsApp(drawn, visibleStatusArea: visible))
+    #expect(!bar.isHiddenByItsApp(doesNotFitAtTheLeftEdge, visibleStatusArea: visible))
+    #expect(!bar.isHiddenByItsApp(doesNotFitPastTheNotch, visibleStatusArea: visible))
+    #expect(!bar.isHiddenByItsApp(collapsed, visibleStatusArea: visible))
+}
+
+@Test func insertingAtAnIndexAimsAtTheReliableItemOnItsRight() throws {
+    let bar = try layout([
+        item(1, x: 900),
+        item(102, x: 930, width: 14),
+        item(101, x: 944, width: 14),
+        item(2, x: 958),
+        item(3, x: 988),
+        item(4, x: 1018),
+        item(100, x: 1048),
+    ])
+
+    #expect(bar.destination(inserting: 1, into: .shown, at: 0) == .leftOf(2))
+    #expect(bar.destination(inserting: 1, into: .shown, at: 1, unreliableNeighbors: [3]) == .leftOf(4))
+    #expect(bar.destination(inserting: 1, into: .shown, at: 3) == .leftOf(100))
+    #expect(bar.destination(inserting: 2, into: .shown, at: 0) == nil)
+    #expect(bar.destination(inserting: 2, into: .hidden, at: 0) == .leftOf(101))
 }

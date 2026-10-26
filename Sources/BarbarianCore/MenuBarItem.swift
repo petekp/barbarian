@@ -38,13 +38,3 @@ public struct MenuBarItem: Hashable, Sendable, Identifiable {
         hasher.combine(windowID)
     }
 }
-
-extension MenuBarItem {
-    /// Whether the item's app keeps the item but is not drawing it, as Now
-    /// Playing does when nothing plays. macOS reports such an item off screen
-    /// at a frame inside the visible part of the menu bar, where an item that
-    /// merely does not fit could not be.
-    public func isHiddenByItsApp(visibleStatusArea: ClosedRange<CGFloat>) -> Bool {
-        !isOnScreen && visibleStatusArea.contains(frame.minX) && visibleStatusArea.contains(frame.maxX)
-    }
-}

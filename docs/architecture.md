@@ -26,13 +26,15 @@ Barbarian is a Swift package with three targets. The app is a menu bar agent wit
 
 **Revealing and rehiding.** Clicking the icon toggles Hidden. Option-click toggles everything. Control-Option-Command-B toggles Hidden from anywhere. One quarter-second timer in `AppController` does two jobs. It reveals Hidden when the pointer rests on the empty stretch of the bar, which is the visible part of the collapsed right divider. It hides revealed items once the pointer has been out of the menu bar for `AutoRehidePolicy.delay`, unless a menu is open or the layout window is open. A click outside the menu bar also rehides.
 
-**The items menu.** Right-click or Control-click the icon, or press Control-Option-Command-M. `ItemsMenu` lists managed items by section, then unplaced items. It leaves out items whose app is not drawing them, using `MenuBarItem.isHiddenByItsApp`. Typing selects an item by name.
+**The items menu.** Right-click or Control-click the icon, or press Control-Option-Command-M. `ItemsMenu` lists managed items by section, then unplaced items. It leaves out items whose app is not drawing them, using `MenuBarLayout.isHiddenByItsApp`. Typing selects an item by name.
 
 **Opening an item.** `ItemAccess` handles a pick from the menu. With Accessibility, an on-screen item is clicked. An off-screen item is moved left of the icon, clicked, and moved back once its menu closes. Without Accessibility, Barbarian reveals the item's section, and asks for the permission if the item still does not fit.
 
 **Moving items.** `MenuBarItemEvents.move` posts a Command-mouse-down addressed to the item's window, then a mouse-up addressed to the target item's window at the target's edge. That is the system's own Command-drag gesture. The window fields deliver the events even when the item is off screen. It retries up to three times, checking whether the item's frame changed. The pointer is hidden during the move and put back afterwards.
 
-**The layout window.** Arrange Menu Bar shows one row per section in menu bar order. Dropping an item on another asks `MenuBarLayout.destination(placing:before:)` for a move. Dropping on a row's empty space asks `destination(appending:to:)`. While the window is open every section is revealed and stays revealed.
+**The layout window.** Arrange Menu Bar shows each section's items in menu bar order, wrapping left to right. `ArrangeGrid` in Core computes every section's and slot's frame. The window draws items at those frames and hit-tests the pointer against them, never against the frames items are animating through, so an item sliding under the pointer cannot change the drop target. All items sit in one SwiftUI view keyed by window ID, so an item dragged into another section slides there as one move.
+
+While you drag, the item follows the pointer and the others spring aside to open a gap at the drop target. On drop, `MenuBarLayout.destination(inserting:into:at:unreliableNeighbors:)` picks the move. It aims past items their app is not drawing, whose frames are stale. The window keeps showing the dropped order until the menu bar reports it, for up to 2 seconds, so the item does not jump back while the move runs. Items not in the menu bar cannot be dragged. Each dimmed item says why: "Not showing" when its app is not drawing it, "Doesn't fit" otherwise. While the window is open every section is revealed and stays revealed.
 
 **Commands.** `Barbarian --command <name>` posts a distributed notification that the running app handles. Scripts and agents use it to drive the app without clicking.
 

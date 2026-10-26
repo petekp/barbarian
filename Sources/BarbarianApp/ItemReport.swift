@@ -6,20 +6,7 @@ import BarbarianSystem
 /// for checking positions from a terminal while Barbarian runs.
 enum ItemReport {
     static func print(_ items: [MenuBarItem]) {
-        let barbarianWindows = items
-            .filter { $0.ownerName == "Barbarian" }
-            .sorted { $0.frame.minX < $1.frame.minX }
-            .map(\.windowID)
-        let layout: MenuBarLayout? = barbarianWindows.count == 3
-            ? MenuBarLayout(
-                items: items,
-                controls: ControlItemIDs(
-                    icon: barbarianWindows[2],
-                    hiddenDivider: barbarianWindows[1],
-                    alwaysHiddenDivider: barbarianWindows[0]
-                )
-            )
-            : nil
+        let layout = MenuBarLayout(runningBarbarianIn: items)
 
         let accessibilityNames = AccessibilityItemNames.names(for: items)
         for item in items.sorted(by: { ($0.frame.minX, $0.windowID) < ($1.frame.minX, $1.windowID) }) {
@@ -36,5 +23,27 @@ enum ItemReport {
             ]
             Swift.print(fields.joined(separator: "\t"))
         }
+    }
+}
+
+extension MenuBarLayout {
+    /// The layout as a separate process sees it, which cannot ask the
+    /// running Barbarian for its control items' IDs. Barbarian's three
+    /// windows are, left to right, the Always Hidden divider, the Hidden
+    /// divider and the icon.
+    init?(runningBarbarianIn items: [MenuBarItem]) {
+        let barbarianWindows = items
+            .filter { $0.ownerName == "Barbarian" }
+            .sorted { $0.frame.minX < $1.frame.minX }
+            .map(\.windowID)
+        guard barbarianWindows.count == 3 else { return nil }
+        self.init(
+            items: items,
+            controls: ControlItemIDs(
+                icon: barbarianWindows[2],
+                hiddenDivider: barbarianWindows[1],
+                alwaysHiddenDivider: barbarianWindows[0]
+            )
+        )
     }
 }

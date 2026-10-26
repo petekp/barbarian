@@ -16,6 +16,7 @@ Agents build and maintain all of it. Read these before changing behavior:
 | Build, sign and install to `~/Applications/Barbarian.app` | `scripts/build-app.sh` |
 | Quit the running copy and open the installed one | `scripts/restart-app.sh` |
 | List menu bar items with title, Accessibility name, position and section | `.build/debug/Barbarian --print-items` |
+| Render the Arrange window to a PNG without opening it, optionally mid-drag | `.build/debug/Barbarian --render-arrange <file.png> [--lift <window ID> <section> <index>]` |
 | Drive the running app | `.build/debug/Barbarian --command <name>` |
 
 `--command` takes `show-hidden`, `show-all`, `hide`, `open-menu`, `open-layout` and `close-layout`. Send build and test output to a log under `.build/logs/` and check the exit status.

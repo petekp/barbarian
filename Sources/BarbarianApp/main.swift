@@ -8,6 +8,10 @@ if arguments.contains("--print-items") {
     exit(0)
 }
 
+if arguments.contains("--render-arrange") {
+    exit(ArrangeSnapshot.run(arguments: arguments))
+}
+
 if let flag = arguments.firstIndex(of: "--command") {
     let names = Command.allCases.map(\.rawValue).joined(separator: ", ")
     guard flag + 1 < arguments.count, let command = Command(rawValue: arguments[flag + 1]) else {
