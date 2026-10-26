@@ -73,13 +73,21 @@ final class ControlItems {
 
     private static func dividerImage(_ divider: Divider) -> NSImage? {
         switch divider {
-        case .hidden: symbol("chevron.compact.left", description: "Hidden items divider")
-        case .alwaysHidden: symbol("chevron.left.2", description: "Always Hidden items divider")
+        case .hidden: symbol("chevron.left", description: "Hidden items divider", configuration: dividerSymbolConfiguration)
+        case .alwaysHidden: symbol("chevron.left.2", description: "Always Hidden items divider", configuration: dividerSymbolConfiguration)
         }
     }
 
-    private static func symbol(_ name: String, description: String) -> NSImage? {
-        let image = NSImage(systemSymbolName: name, accessibilityDescription: description)
+    /// About half the height of a menu bar icon, so a divider does not read as an item.
+    private static let dividerSymbolConfiguration = NSImage.SymbolConfiguration(pointSize: 8, weight: .bold)
+
+    private static func symbol(
+        _ name: String,
+        description: String,
+        configuration: NSImage.SymbolConfiguration? = nil
+    ) -> NSImage? {
+        var image = NSImage(systemSymbolName: name, accessibilityDescription: description)
+        if let configuration { image = image?.withSymbolConfiguration(configuration) }
         image?.isTemplate = true
         return image
     }
