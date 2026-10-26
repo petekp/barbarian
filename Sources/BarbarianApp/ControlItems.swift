@@ -78,8 +78,8 @@ final class ControlItems {
         }
     }
 
-    /// About half the height of a menu bar icon, so a divider does not read as an item.
-    private static let dividerSymbolConfiguration = NSImage.SymbolConfiguration(pointSize: 8, weight: .bold)
+    /// Under half the height of a menu bar icon, so a divider does not read as an item.
+    private static let dividerSymbolConfiguration = NSImage.SymbolConfiguration(pointSize: 7, weight: .heavy)
 
     private static func symbol(
         _ name: String,
