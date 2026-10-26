@@ -7,26 +7,21 @@ import Synchronization
 ///
 /// Each capture request can make macOS show its screen recording alert, so a
 /// round of items is one request: one picture of the stretch of menu bar that
-/// holds them, cut into each item's image. A new round waits until macOS has
-/// answered the last request.
+/// holds them, cut into each item's image. Rounds never overlap.
 public enum MenuBarItemImages {
     /// Pixels per point in captured images.
     public static let scale: CGFloat = 2
 
-    /// When the unanswered request was sent. A request macOS never answers
-    /// stops blocking new ones after `abandonAfter`.
-    private static var requestSentAt: Date?
-    private static let abandonAfter: TimeInterval = 10
+    private static var isCapturing = false
 
     /// Images of the on-screen items among `items`, keyed by window ID. Empty
-    /// while an earlier request is still unanswered.
+    /// while an earlier round is under way.
     public static func capture(_ items: [MenuBarItem]) async -> [WindowID: CGImage] {
         let onScreen = items.filter(\.isOnScreen)
-        let isRequestOutstanding = requestSentAt.map { Date().timeIntervalSince($0) < abandonAfter } ?? false
+        guard ScreenRecordingPermission.isGranted, !isCapturing, let first = onScreen.first else { return [:] }
+        isCapturing = true
+        defer { isCapturing = false }
         guard
-            ScreenRecordingPermission.isGranted,
-            !isRequestOutstanding,
-            let first = onScreen.first,
             let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true),
             let display = content.displays.first(where: { $0.frame.contains(CGPoint(x: first.frame.midX, y: first.frame.midY)) })
         else {
@@ -49,7 +44,9 @@ public enum MenuBarItemImages {
         })
     }
 
-    private static let captureTimeout: Duration = .seconds(1)
+    /// How long a round waits for macOS, which stops answering capture
+    /// requests when its screen capture service is stuck.
+    private static let captureTimeout: Duration = .seconds(3)
 
     /// `area`, in global coordinates, of `display` without `others`. Leaving
     /// out every other window leaves the items on a clear background. A
@@ -62,7 +59,6 @@ public enum MenuBarItemImages {
         configuration.showsCursor = false
         let filter = SCContentFilter(display: display, excludingWindows: others)
 
-        requestSentAt = Date()
         return await withCheckedContinuation { continuation in
             let resumed = Mutex(false)
             let finish: @Sendable (CGImage?) -> Void = { image in
@@ -77,7 +73,6 @@ public enum MenuBarItemImages {
                 finish(nil)
             }
             SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration) { image, _ in
-                Task { @MainActor in requestSentAt = nil }
                 timeout.cancel()
                 finish(image)
             }

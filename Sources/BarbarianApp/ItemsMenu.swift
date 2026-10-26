@@ -13,11 +13,11 @@ enum ItemsMenu {
 
         if let layout {
             let presentation = ItemPresentation(layout: layout, images: controller.itemImages)
-            var sections = [MenuBarSection.shown, .hidden, .alwaysHidden].map { section in
+            var sections: [(title: String, items: [MenuBarItem])] = [MenuBarSection.shown, .hidden, .alwaysHidden].map { section in
                 (section.title, layout.items(in: section).filter { !layout.isNotDrawn($0) })
             }
             sections.append(("Not in the Menu Bar", layout.unplacedItems))
-            let icons = IconColumn(items: sections.flatMap(\.1), presentation: presentation)
+            let icons = IconColumn(items: sections.flatMap(\.items), presentation: presentation)
             for (title, items) in sections {
                 addSection(title, items: items, presentation: presentation, icons: icons, to: menu, target: target)
             }

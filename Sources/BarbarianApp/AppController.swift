@@ -16,12 +16,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     private lazy var layoutWindow = LayoutWindowController(controller: self)
     private lazy var settingsWindow = SettingsWindowController(controller: self)
     private let statusMessage = StatusMessage()
-    private let capturedImages = ItemImageCache()
-
-    /// Nil unless items' own icons are turned on in Settings.
-    var itemImages: ItemImageCache? {
-        Preferences.shared.showsItemImages ? capturedImages : nil
-    }
+    let itemImages = ItemImageCache { Preferences.shared.showsItemImages }
 
     /// Keeps every section on screen while the layout window is open.
     var isPinnedOpen = false {
@@ -78,7 +73,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     /// Captures the active menu bar's on-screen items for the items menu and
     /// the Arrange window.
     func captureItemImages() {
-        guard let itemImages, let items = activeMenuBar()?.items else { return }
+        guard itemImages.isOn(), let items = activeMenuBar()?.items else { return }
         Task { await itemImages.capture(items) }
     }
 
@@ -88,7 +83,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         if newState != .showingShownOnly && state == .showingShownOnly {
             pointerLastInMenuBarAt = Date()
         }
-        let revealsMore = newState != .showingShownOnly && newState != state
+        let revealsMore = newState.revealsMore(than: state)
         state = newState
         apply()
         if revealsMore { captureRevealedItems() }

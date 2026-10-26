@@ -3,25 +3,28 @@ import BarbarianCore
 import BarbarianSystem
 
 /// Menu bar items' own images, captured while they are on screen and kept for
-/// when they are hidden. Empty without Screen Recording permission.
+/// when they are hidden. Empty while `isOn` is false or without Screen
+/// Recording permission.
 ///
 /// Images are seen only in the items menu and the Arrange window, so items
 /// are captured when those open and when a section is revealed.
 @Observable
 final class ItemImageCache {
     private var images: [WindowID: NSImage] = [:]
-    @ObservationIgnored private var isCapturing = false
+    @ObservationIgnored let isOn: () -> Bool
 
-    func image(of id: WindowID) -> NSImage? {
-        images[id]
+    init(isOn: @escaping () -> Bool) {
+        self.isOn = isOn
     }
 
-    /// Captures the on-screen items among `items`, unless a capture is under
-    /// way, and forgets items no longer among them.
+    func image(of id: WindowID) -> NSImage? {
+        isOn() ? images[id] : nil
+    }
+
+    /// Captures the on-screen items among `items` and forgets items no longer
+    /// among them.
     func capture(_ items: [MenuBarItem]) async {
-        guard !isCapturing else { return }
-        isCapturing = true
-        defer { isCapturing = false }
+        guard isOn() else { return }
         let captured = await MenuBarItemImages.capture(items)
         let current = Set(items.map(\.windowID))
         images = images.filter { current.contains($0.key) }

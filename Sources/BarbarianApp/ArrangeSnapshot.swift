@@ -17,12 +17,8 @@ enum ArrangeSnapshot {
         guard let barbarian = RunningBarbarian(), let layout = barbarian.layout else {
             return RenderCommand.fail("Barbarian is not running, or its three status items were not found.")
         }
-        var images: ItemImageCache?
-        if arguments.contains("--item-images") {
-            let cache = ItemImageCache()
-            capture(barbarian.menuBar.items, into: cache)
-            images = cache
-        }
+        let images = arguments.contains("--item-images") ? ItemImageCache { true } : nil
+        if let images { capture(barbarian.menuBar.items, into: images) }
         let presentation = ItemPresentation(layout: layout, images: images)
         let widths = ArrangeContent.widths(of: layout, presentation: presentation)
 

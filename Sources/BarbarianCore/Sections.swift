@@ -41,4 +41,17 @@ public enum HidingState: Sendable, Equatable {
         case (.showingAll, _): false
         }
     }
+
+    /// Whether this state shows a section that `other` keeps hidden.
+    public func revealsMore(than other: HidingState) -> Bool {
+        revealedSections > other.revealedSections
+    }
+
+    private var revealedSections: Int {
+        switch self {
+        case .showingShownOnly: 0
+        case .showingHidden: 1
+        case .showingAll: 2
+        }
+    }
 }

@@ -11,6 +11,13 @@ import Testing
     #expect(!HidingState.showingAll.isCollapsed(.alwaysHidden))
 }
 
+@Test func onlyAStateShowingAnotherSectionRevealsMore() {
+    #expect(HidingState.showingHidden.revealsMore(than: .showingShownOnly))
+    #expect(HidingState.showingAll.revealsMore(than: .showingHidden))
+    #expect(!HidingState.showingHidden.revealsMore(than: .showingAll))
+    #expect(!HidingState.showingHidden.revealsMore(than: .showingHidden))
+}
+
 @Test func revealedItemsHideOnceThePointerHasBeenAwayForTheDelay() {
     let policy = AutoRehidePolicy(delay: 4)
     let left = Date(timeIntervalSince1970: 1_000)
