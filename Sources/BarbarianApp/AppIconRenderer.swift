@@ -11,9 +11,9 @@ enum AppIconRenderer {
     private static let tileCornerRadius: CGFloat = 185
     private static let axeSize: CGFloat = 600
 
-    private static let tileColors = [color(0xD2412F), color(0x6A120C)]
-    private static let tileEdgeColor = color(0xE0604F)
-    private static let axeColors = [color(0xFFFAF0), color(0xE8D9C0)]
+    private static let tileColors = [color(0x23314F), color(0x0A101C)]
+    private static let tileEdgeColor = color(0x34466D)
+    private static let axeColors = [color(0xF6D08A), color(0xB06F2C)]
 
     static func run(arguments: [String]) -> Int32 {
         guard let flag = arguments.firstIndex(of: "--render-app-icon"), flag + 1 < arguments.count else {
