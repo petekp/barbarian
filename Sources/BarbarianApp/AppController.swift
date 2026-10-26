@@ -67,6 +67,16 @@ final class AppController: NSObject, NSApplicationDelegate {
         }
         state = newState
         apply()
+        if newState != .showingShownOnly { captureRevealedItems() }
+    }
+
+    /// Revealed items are on screen, so their images can be captured once
+    /// they have been drawn.
+    private func captureRevealedItems() {
+        Task {
+            try? await Task.sleep(for: .milliseconds(600))
+            ItemImageCache.shared.refresh(force: true)
+        }
     }
 
     func toggle(_ target: HidingState) {
@@ -124,6 +134,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         let now = Date()
         let pointerInMenuBar = Self.isPointerInMenuBar()
         if pointerInMenuBar { pointerLastInMenuBarAt = now }
+        ItemImageCache.shared.refresh()
 
         if state == .showingShownOnly {
             revealIfHovering(now: now)

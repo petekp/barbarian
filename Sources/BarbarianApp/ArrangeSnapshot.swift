@@ -15,6 +15,7 @@ enum ArrangeSnapshot {
             return fail("usage: Barbarian --render-arrange <file.png> [--lift <window ID> <section> <index>]")
         }
         let output = URL(fileURLWithPath: arguments[flag + 1])
+        captureItemImages()
         let items = MenuBarWindowList.items()
         guard let layout = MenuBarLayout(runningBarbarianIn: items) else {
             return fail("Barbarian is not running, or its three status items were not found.")
@@ -79,6 +80,20 @@ enum ArrangeSnapshot {
             }
         }
         return ItemDrag(item: item, pointer: CGPoint(x: slot.midX + 14, y: slot.midY + 10), grabOffset: .zero, target: target)
+    }
+
+    /// Fills `ItemImageCache` before drawing, when this process has Screen
+    /// Recording permission.
+    private static func captureItemImages() {
+        _ = NSApplication.shared
+        var isDone = false
+        Task {
+            await ItemImageCache.shared.captureNow()
+            isDone = true
+        }
+        while !isDone {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        }
     }
 
     private static func fail(_ message: String) -> Int32 {

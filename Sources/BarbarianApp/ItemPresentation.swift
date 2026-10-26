@@ -4,8 +4,8 @@ import BarbarianSystem
 
 /// How Barbarian names and draws other apps' menu bar items.
 ///
-/// Without Screen Recording permission Barbarian cannot capture an item's
-/// own image, so it shows the owning app's icon.
+/// An item is drawn with its own image when `ItemImageCache` has one, which
+/// needs Screen Recording permission, and with its app's icon otherwise.
 struct ItemPresentation {
     private let accessibilityNames: [WindowID: String]
     private let itemCountByOwner: [Int32: Int]
@@ -20,11 +20,26 @@ struct ItemPresentation {
     func name(of item: MenuBarItem) -> String {
         let appName = NSRunningApplication(processIdentifier: item.ownerPID)?.localizedName ?? item.ownerName
         guard itemCountByOwner[item.ownerPID, default: 0] > 1 else { return appName }
-        if let title = item.title { return Self.systemItemNames[title] ?? title }
-        return accessibilityNames[item.windowID] ?? appName
+        if let title = item.title, let systemName = Self.systemItemNames[title] { return systemName }
+        if let name = accessibilityNames[item.windowID] { return name }
+        if let title = item.title, !title.hasPrefix(Self.untitledWindowPrefix) { return title }
+        return appName
     }
 
+    /// AppKit titles a status item's window "Item-0", "Item-1" and so on
+    /// when its app gives the item no name.
+    private static let untitledWindowPrefix = "Item-"
+
+    /// The item's own image, scaled down to fit `size` points high, or its
+    /// app's icon at `size` points square.
     func icon(of item: MenuBarItem, size: CGFloat = 16) -> NSImage? {
+        if let captured = ItemImageCache.shared.image(of: item.windowID) {
+            let image = captured.copy() as! NSImage
+            let scale = min(1, size / captured.size.height)
+            image.size = NSSize(width: captured.size.width * scale, height: captured.size.height * scale)
+            image.isTemplate = captured.isTemplate
+            return image
+        }
         guard let icon = NSRunningApplication(processIdentifier: item.ownerPID)?.icon?.copy() as? NSImage else {
             return nil
         }

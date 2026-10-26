@@ -15,7 +15,7 @@ Agents build and maintain all of it. Read these before changing behavior:
 | Unit tests | `swift test` |
 | Build, sign and install to `~/Applications/Barbarian.app` | `scripts/build-app.sh` |
 | Quit the running copy and open the installed one | `scripts/restart-app.sh` |
-| List menu bar items with title, Accessibility name, position and section | `.build/debug/Barbarian --print-items` |
+| List the active menu bar's items with title, Accessibility name, position and section | `.build/debug/Barbarian --print-items` |
 | Render the Arrange window to a PNG without opening it, optionally mid-drag | `.build/debug/Barbarian --render-arrange <file.png> [--lift <window ID> <section> <index>]` |
 | Drive the running app | `.build/debug/Barbarian --command <name>` |
 
@@ -33,11 +33,11 @@ Barbarian acts on the menu bar of the Mac it runs on, which is Pete's own.
 
 - Hiding is reversible: quitting Barbarian brings every item back.
 - Moving an item is not. macOS saves the new position in the owning app's preferences. On Pete's Mac, move only items he has agreed to, and put them back afterwards.
-- Verify behavior with `--print-items` first. The `x` column and the `on`/`off` column show what the screen shows. Use `screencapture -x -R <x>,0,<w>,40 <file>` for a picture of the bar.
+- Verify behavior with `--print-items` first. The `x` column and the `on`/`off` column show what the screen shows. Use `screencapture -x -R <x>,<y>,<w>,40 <file>` for a picture of the bar, where `<y>` is the top of the active display: 0 for the main display, negative for one above it.
 - `open-menu` blocks Barbarian until the menu closes, and no command can close it. Run `scripts/restart-app.sh` to close it.
 
 ## Permissions
 
 - macOS ties the Accessibility grant to the app's signature and path. `scripts/build-app.sh` always signs with the same certificate and installs to the same path, so a rebuild keeps the grant. Keep both stable.
 - Without Accessibility, Barbarian can hide and reveal sections but cannot move or click other apps' items. Code that posts events checks `AccessibilityPermission.isGranted` first and must keep doing so.
-- Barbarian does not ask for Screen Recording. Without it, macOS withholds other apps' window titles, so item names come from the owning app or from Accessibility.
+- Screen Recording is optional. With it, Barbarian shows each item's own image and reads window titles. Without it, items show their app's icon and names come from the owning app or from Accessibility. Code that captures checks `ScreenRecordingPermission.isGranted` first.

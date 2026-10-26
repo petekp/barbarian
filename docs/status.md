@@ -16,6 +16,9 @@ Checked on macOS 15.7 on a 14-inch MacBook Pro with a notch, without Accessibili
 - Opening an off-screen item, with Accessibility, on 2026-10-26: `--command open-item 515` moved OrbStack from Always Hidden to the left of the icon, clicked it so its menu opened, and moved it back once the menu closed. Every item ended in its original order and section.
 - Item names read through Accessibility, checked with `--print-items` from a terminal that has Accessibility, on 2026-10-26. Control Center's drawn items get their own names, such as "Wi‑Fi, connected, 3 bars".
 
+- Item images, rendered with `--render-arrange` from a terminal with Screen Recording on 2026-10-26: on-screen items show their own image, and hidden items show their app's icon until they have been on screen.
+- Reading the active menu bar with two displays, checked with `--print-items` on 2026-10-26 with the built-in display active: one entry per item, with real window IDs and Accessibility names.
+
 ## Built, not yet verified
 
 These need Accessibility permission or a real pointer, which no check has had.
@@ -26,6 +29,8 @@ These need Accessibility permission or a real pointer, which no check has had.
 - Rehiding on a click outside the menu bar.
 - The hot keys Control-Option-Command-B and Control-Option-Command-M.
 - Left-click, Option-click and right-click on the icon.
+- Item images inside the running app, which needs Barbarian to have Screen Recording.
+- Hover reveal on the Studio Display and the rest of the multi-display behavior inside the running app.
 - Everything on macOS 26.
 
 ## Known gaps

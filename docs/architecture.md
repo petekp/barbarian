@@ -5,8 +5,8 @@ Barbarian is a Swift package with three targets. The app is a menu bar agent wit
 | Target | Holds | Depends on |
 |---|---|---|
 | `BarbarianCore` | Models and decisions as plain values: `MenuBarItem`, `MenuBarMembership`, `MenuBarLayout`, `HidingState`, `AutoRehidePolicy`, `MoveDestination` | Core Graphics geometry only |
-| `BarbarianSystem` | macOS adapters: `MenuBarDisplay`, `MenuBarWindowList`, `AppMenus`, `MenuBarItemEvents`, `AccessibilityPermission`, `AccessibilityItemNames`, `GlobalHotKey` | Core |
-| `BarbarianApp` | `AppController`, `ControlItems`, `ItemsMenu`, `ItemAccess`, the layout window, `CommandChannel` | Core and System |
+| `BarbarianSystem` | macOS adapters: `MenuBarDisplay`, `MenuBarWindowList`, `MenuBarItemImages`, `ScreenRecordingPermission`, `AppMenus`, `MenuBarItemEvents`, `AccessibilityPermission`, `AccessibilityItemNames`, `GlobalHotKey` | Core |
+| `BarbarianApp` | `AppController`, `ControlItems`, `ItemsMenu`, `ItemAccess`, `ItemImageCache`, the layout window, `CommandChannel` | Core and System |
 
 `swift test` covers Core. System and App are checked by running the app; see `AGENTS.md`.
 
@@ -26,6 +26,8 @@ Barbarian is a Swift package with three targets. The app is a menu bar agent wit
 **Reading the bar.** `MenuBarWindowList.items()` reads every window at the status window level from `CGWindowListCopyWindowInfo`, and `MenuBarMembership` keeps the ones that belong to the active menu bar. `MenuBarDisplay` describes each display's menu bar: its bounds, its height and where status items can appear. `MenuBarLayout` sorts the managed items by x and assigns sections. It needs no permission.
 
 **Revealing and rehiding.** Clicking the icon toggles Hidden. Option-click toggles everything. Control-Option-Command-B toggles Hidden from anywhere. One quarter-second timer in `AppController` does two jobs. It reveals Hidden when the pointer rests on the empty stretch of any display's menu bar: the visible part of the collapsed right divider, right of the notch or of the app's menus. On a display without a notch, `AppMenus` reads where the app's menus end through Accessibility, and without the permission hover does nothing there. It hides revealed items once the pointer has been out of the menu bar for `AutoRehidePolicy.delay`, unless a menu is open or the layout window is open. A click outside the menu bar also rehides.
+
+**Item images.** With Screen Recording, `MenuBarItemImages` captures items' own images through ScreenCaptureKit, and `ItemImageCache` keeps them, trimmed to the drawn pixels. A one-color image becomes a template image so it follows light and dark mode. Only on-screen items can be captured, so the cache refreshes on-screen items every 10 seconds and right after a section is revealed, and keeps a hidden item's last image. `ItemPresentation` falls back to the app's icon.
 
 **The items menu.** Right-click or Control-click the icon, or press Control-Option-Command-M. `ItemsMenu` lists managed items by section, then unplaced items. It leaves out items whose app is not drawing them, using `MenuBarLayout.isHiddenByItsApp`. Typing selects an item by name.
 
@@ -53,6 +55,7 @@ Observed on macOS 15.7 on a 14-inch MacBook Pro with a notch, unless noted.
 - A window keeps the height of the menu bar it belongs to: 37 points on the built-in display with a notch, 24 on the Studio Display. Copies of items whose app is not drawing them stay parked in the other menu bar with their own bar's height, so height tells them apart.
 - Window titles of other apps' windows are withheld from processes without Screen Recording permission. Accessibility reports item names instead.
 - Posted mouse events from a process without Accessibility permission are dropped.
+- A ScreenCaptureKit capture of an off-screen status item window never completes. `MenuBarItemImages` skips off-screen items and drops a capture after a second. `CGWindowListCreateImage`, the older capture call, is unavailable from the macOS 15 SDK on.
 
 ## Risks
 
