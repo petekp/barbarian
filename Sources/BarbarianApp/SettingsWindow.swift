@@ -80,7 +80,7 @@ private struct SettingsView: View {
                     }
                 )) {
                     Text("Show items' own icons")
-                    Text("Needs Screen Recording, which macOS asks you to confirm about once a month. When off, items show their app's icon.")
+                    Text("Needs Screen Recording, which macOS asks you to confirm again from time to time. When off, items show their app's icon.")
                 }
             }
 
@@ -126,10 +126,9 @@ private struct Explanation: View {
     let text: String
 
     var body: some View {
-        Label {
-            Text(text).fixedSize(horizontal: false, vertical: true)
-        } icon: {
+        HStack(spacing: 8) {
             Image(systemName: symbol).foregroundStyle(.secondary).frame(width: 20)
+            Text(text).fixedSize(horizontal: false, vertical: true)
         }
     }
 }
