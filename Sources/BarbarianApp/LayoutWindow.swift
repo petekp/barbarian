@@ -75,17 +75,32 @@ struct ArrangeContent {
     /// layout, since it measures text.
     let widths: [WindowID: CGFloat]
 
+    /// Where the menu bar's room ends in the strip, and how many items lie
+    /// left of it. When the bar is full, macOS leaves out the leftmost
+    /// items, so the items that do not fit sit left of one point. Nil when
+    /// everything fits.
+    let overflow: (endX: CGFloat, itemCount: Int)?
+
     static let metrics = ArrangeStrip.Metrics(height: 64, spacing: 2, sectionPadding: 6, minimumSectionWidth: 90)
     static let nameFont = NSFont.systemFont(ofSize: 11)
     private static let dividerWidth: CGFloat = 26
-    private static let notDrawnWidth: CGFloat = 34
+    private static let minimumItemWidth: CGFloat = 56
 
     init(layout: MenuBarLayout, pendingOrder: [WindowID]?, drag: EntryDrag?, presentation: ItemPresentation, widths: [WindowID: CGFloat]) {
         self.layout = layout
         self.presentation = presentation
         self.widths = widths
-        entries = layout.entries(inOrder: pendingOrder, moving: drag?.entry, to: drag?.targetIndex ?? 0)
-        strip = Self.strip(for: entries, widths: widths)
+        let entries = layout.entries(inOrder: pendingOrder, moving: drag?.entry, to: drag?.targetIndex ?? 0)
+        let strip = Self.strip(for: entries, widths: widths)
+        self.entries = entries
+        self.strip = strip
+        let itemsThatDoNotFit = entries.indices.filter { entries[$0].item.map(layout.doesNotFit) ?? false }
+        if let last = itemsThatDoNotFit.last {
+            let endX = last + 1 < strip.frames.count ? (strip.frames[last].maxX + strip.frames[last + 1].minX) / 2 : strip.frames[last].maxX
+            overflow = (endX, itemsThatDoNotFit.count)
+        } else {
+            overflow = nil
+        }
     }
 
     /// A divider's role where the window shows it: the left one plays Always
@@ -100,20 +115,26 @@ struct ArrangeContent {
         ArrangeStrip(elements: entries.map { entry in
             switch entry {
             case .divider: .divider(width: dividerWidth)
-            case .item(let item): .item(width: widths[item.windowID] ?? notDrawnWidth)
+            case .item(let item): .item(width: widths[item.windowID] ?? minimumItemWidth)
             }
         }, metrics: metrics)
     }
 
-    /// Every item's width: its name's, within limits, or a small fixed
-    /// width for an item its app is not drawing, which shows no name.
+    /// Every item's width: its name's, within limits.
     static func widths(of layout: MenuBarLayout, presentation: ItemPresentation) -> [WindowID: CGFloat] {
         let items = layout.entries.compactMap(\.item) + layout.systemItems
         return Dictionary(items.map { item in
             let textWidth = (presentation.name(of: item) as NSString).size(withAttributes: [.font: nameFont]).width
-            let width = layout.isNotDrawn(item) ? notDrawnWidth : min(max(textWidth.rounded(.up) + 14, 56), 120)
-            return (item.windowID, width)
+            return (item.windowID, min(max(textWidth.rounded(.up) + 14, minimumItemWidth), 120))
         }, uniquingKeysWith: { first, _ in first })
+    }
+}
+
+private extension MenuBarLayout {
+    /// Off screen although its section is shown and its app draws it, as
+    /// the Arrange window keeps every section shown.
+    func doesNotFit(_ item: MenuBarItem) -> Bool {
+        !item.isOnScreen && !isNotDrawn(item)
     }
 }
 
@@ -291,6 +312,8 @@ struct ArrangeCanvas: View {
     private static let headerHeight: CGFloat = 34
     private static let trailingGap: CGFloat = 10
     private static let iconWidth: CGFloat = 40
+    private static let overflowLabelHeight: CGFloat = 20
+    private static let overflowColor = Color.orange
 
     var body: some View {
         let strip = content.strip
@@ -306,8 +329,20 @@ struct ArrangeCanvas: View {
                     isDropTarget: drag.map { span.contains($0.entryCenterX) } ?? false
                 )
             }
+            if let overflow = content.overflow {
+                overflowMarks(endX: overflow.endX, itemCount: overflow.itemCount, sectionSpans: strip.sectionSpans, stripHeight: stripHeight)
+            }
             ForEach(Array(content.entries.enumerated()), id: \.element.id) { index, entry in
                 entryView(entry, frame: strip.frames[index].offsetBy(dx: 0, dy: Self.headerHeight))
+            }
+            if !systemItems.isEmpty {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Placed by macOS").font(.system(size: 12, weight: .semibold))
+                    Text("Can't be moved").font(.system(size: 10.5))
+                }
+                .foregroundStyle(.secondary)
+                .fixedSize()
+                .offset(x: trailingX + Self.iconWidth + 4)
             }
             HStack(spacing: 0) {
                 Image(nsImage: BattleAxeIcon.image())
@@ -320,8 +355,44 @@ struct ArrangeCanvas: View {
             }
             .offset(x: trailingX, y: Self.headerHeight)
         }
-        .frame(width: trailingX + Self.iconWidth + systemItemsWidth, height: Self.headerHeight + stripHeight, alignment: .topLeading)
+        .frame(
+            width: trailingX + Self.iconWidth + systemItemsWidth,
+            height: Self.headerHeight + stripHeight + (content.overflow == nil ? 0 : Self.overflowLabelHeight),
+            alignment: .topLeading
+        )
         .coordinateSpace(.named(Self.coordinateSpace))
+    }
+
+    /// Shading over the items that do not fit, inside their sections, a
+    /// dashed line where the room ends, and one label under the line.
+    @ViewBuilder
+    private func overflowMarks(endX: CGFloat, itemCount: Int, sectionSpans: [ClosedRange<CGFloat>], stripHeight: CGFloat) -> some View {
+        ForEach(Array(sectionSpans.enumerated()), id: \.offset) { _, span in
+            let shadedWidth = min(span.upperBound, endX) - span.lowerBound
+            if shadedWidth > 0 {
+                DiagonalLines(spacing: 8)
+                    .stroke(Color.primary.opacity(0.07), lineWidth: 4)
+                    .frame(width: span.upperBound - span.lowerBound, height: stripHeight)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .frame(width: shadedWidth, height: stripHeight, alignment: .leading)
+                    .clipped()
+                    .offset(x: span.lowerBound, y: Self.headerHeight)
+                    .animation(Self.spring, value: endX)
+            }
+        }
+        Path { path in
+            path.move(to: CGPoint(x: endX, y: Self.headerHeight - 4))
+            path.addLine(to: CGPoint(x: endX, y: Self.headerHeight + stripHeight + Self.overflowLabelHeight))
+        }
+        .stroke(Self.overflowColor, style: StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
+        .animation(Self.spring, value: endX)
+        Text(itemCount == 1 ? "← No room for this one right now" : "← No room for these \(itemCount) right now")
+            .font(.system(size: 11))
+            .foregroundStyle(Self.overflowColor)
+            .fixedSize()
+            .frame(width: endX - 6, alignment: .trailing)
+            .offset(y: Self.headerHeight + stripHeight + 3)
+            .animation(Self.spring, value: endX)
     }
 
     @ViewBuilder
@@ -335,7 +406,7 @@ struct ArrangeCanvas: View {
             case .divider:
                 DividerChip(role: content.dividerRole(of: entry), isLifted: isLifted)
             case .item(let item):
-                let status: ItemChip.Status = content.layout.isNotDrawn(item) ? .notDrawn : (item.isOnScreen ? .shown : .doesNotFit)
+                let status: ItemChip.Status = content.layout.isNotDrawn(item) ? .notDrawn : (content.layout.doesNotFit(item) ? .doesNotFit : .shown)
                 itemChip(item, status: status, isLifted: isLifted)
             }
         }
@@ -420,26 +491,28 @@ private struct ItemChip: View {
     var body: some View {
         Group {
             if status == .notDrawn {
-                iconImage
-                    .scaleEffect(0.6)
-                    .frame(width: 26, height: 26)
-                    .opacity(0.5)
-                    .background(Circle().strokeBorder(.tertiary, style: StrokeStyle(lineWidth: 1, dash: [2, 2])))
-            } else {
-                VStack(spacing: 4) {
+                VStack(spacing: 3) {
                     iconImage
-                        .frame(height: 24)
-                        .opacity(status == .doesNotFit ? 0.45 : 1)
+                        .scaleEffect(0.6)
+                        .frame(width: 24, height: 24)
+                        .opacity(0.5)
+                        .background(Circle().strokeBorder(.tertiary, style: StrokeStyle(lineWidth: 1, dash: [2, 2])))
                     Text(name)
                         .font(Font(ArrangeContent.nameFont))
                         .lineLimit(1)
-                        .foregroundStyle(status == .doesNotFit ? .secondary : .primary)
-                    if status == .doesNotFit {
-                        Text("Doesn't fit").font(.system(size: 9.5)).foregroundStyle(.tertiary)
-                    }
+                        .foregroundStyle(.secondary)
+                    Text("Not showing").font(.system(size: 9.5)).foregroundStyle(.tertiary)
                 }
                 .padding(.horizontal, 4)
-                .opacity(status == .placedByMacOS ? 0.45 : 1)
+            } else {
+                VStack(spacing: 4) {
+                    iconImage.frame(height: 24)
+                    Text(name)
+                        .font(Font(ArrangeContent.nameFont))
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 4)
+                .opacity(isDimmed ? 0.45 : 1)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -454,6 +527,10 @@ private struct ItemChip: View {
         .animation(.easeOut(duration: 0.12), value: isHovered)
         .onHover { isHovered = status != .placedByMacOS && $0 }
         .help(help)
+    }
+
+    private var isDimmed: Bool {
+        status == .doesNotFit || status == .placedByMacOS
     }
 
     @ViewBuilder private var iconImage: some View {
@@ -473,6 +550,22 @@ private struct ItemChip: View {
         case .doesNotFit: "\(name) doesn't fit in the menu bar right now"
         case .notDrawn: "\(name) isn't showing right now. Its app shows it only sometimes."
         case .placedByMacOS: "\(name) is placed by macOS"
+        }
+    }
+}
+
+/// Parallel lines from bottom left to top right, filling the frame.
+private struct DiagonalLines: Shape {
+    let spacing: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        Path { path in
+            var x = rect.minX - rect.height
+            while x < rect.maxX {
+                path.move(to: CGPoint(x: x, y: rect.maxY))
+                path.addLine(to: CGPoint(x: x + rect.height, y: rect.minY))
+                x += spacing
+            }
         }
     }
 }
