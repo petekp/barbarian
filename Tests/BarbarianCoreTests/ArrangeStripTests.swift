@@ -30,3 +30,10 @@ private let metrics = ArrangeStrip.Metrics(height: 50, spacing: 4, sectionPaddin
     #expect(strip.insertionIndex(at: 30) == 1)
     #expect(strip.insertionIndex(at: 500) == 3)
 }
+
+@Test func theGapAfterAnElementIsMidwayToTheNextOrAtTheLastOnesEdge() {
+    let strip = ArrangeStrip(elements: [.item(width: 40), .item(width: 40)], metrics: metrics)
+
+    #expect(strip.gapX(after: 0) == 50)
+    #expect(strip.gapX(after: 1) == 92)
+}

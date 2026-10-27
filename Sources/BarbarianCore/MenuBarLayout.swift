@@ -144,6 +144,13 @@ public struct MenuBarLayout: Sendable, Equatable {
         notDrawnItems.contains(item.windowID)
     }
 
+    /// Whether `item` is off screen for lack of room. This holds only while
+    /// every section is shown, as the Arrange window keeps them: otherwise a
+    /// collapsed section's items are off screen too.
+    public func doesNotFitWithEverySectionShown(_ item: MenuBarItem) -> Bool {
+        !item.isOnScreen && !isNotDrawn(item)
+    }
+
     /// The entries in `order` where it names them, else in their own order,
     /// with `moving` taken out and put back at `index`. The Arrange window
     /// shows this while a drag or a drop is under way.

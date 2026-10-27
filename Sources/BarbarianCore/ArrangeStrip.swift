@@ -70,6 +70,13 @@ public struct ArrangeStrip: Sendable, Equatable {
         sectionSpans = spans
     }
 
+    /// The x midway between the element at `index` and the next one, or the
+    /// element's right edge when it is the last.
+    public func gapX(after index: Int) -> CGFloat {
+        guard index + 1 < frames.count else { return frames[index].maxX }
+        return (frames[index].maxX + frames[index + 1].minX) / 2
+    }
+
     /// Where an entry centered at `x` would be inserted among this strip's
     /// elements: the number of elements whose middle is left of `x`.
     public func insertionIndex(at x: CGFloat) -> Int {

@@ -98,6 +98,17 @@ private func layout(_ items: [MenuBarItem]) throws -> MenuBarLayout {
     #expect(bar.notDrawnItems == [notDrawn.windowID])
 }
 
+@Test func withEverySectionShownAnOffScreenItemItsAppDrawsDoesNotFit() throws {
+    let doesNotFit = item(1, x: 862, onScreen: false)
+    let drawn = item(2, x: 1100)
+    let notDrawn = item(3, x: 1140, onScreen: false)
+    let bar = try layout([doesNotFit, drawn, notDrawn, item(100, x: 1200)])
+
+    #expect(bar.doesNotFitWithEverySectionShown(doesNotFit))
+    #expect(!bar.doesNotFitWithEverySectionShown(drawn))
+    #expect(!bar.doesNotFitWithEverySectionShown(notDrawn))
+}
+
 @Test func movingToAnIndexAimsAtTheReliableEntryOnItsRight() throws {
     let bar = try layout([
         item(1, x: 900),

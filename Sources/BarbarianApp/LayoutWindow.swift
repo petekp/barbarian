@@ -94,13 +94,8 @@ struct ArrangeContent {
         let strip = Self.strip(for: entries, widths: widths)
         self.entries = entries
         self.strip = strip
-        let itemsThatDoNotFit = entries.indices.filter { entries[$0].item.map(layout.doesNotFit) ?? false }
-        if let last = itemsThatDoNotFit.last {
-            let endX = last + 1 < strip.frames.count ? (strip.frames[last].maxX + strip.frames[last + 1].minX) / 2 : strip.frames[last].maxX
-            overflow = (endX, itemsThatDoNotFit.count)
-        } else {
-            overflow = nil
-        }
+        let itemsThatDoNotFit = entries.indices.filter { entries[$0].item.map(layout.doesNotFitWithEverySectionShown) ?? false }
+        overflow = itemsThatDoNotFit.last.map { (strip.gapX(after: $0), itemsThatDoNotFit.count) }
     }
 
     /// A divider's role where the window shows it: the left one plays Always
@@ -127,14 +122,6 @@ struct ArrangeContent {
             let textWidth = (presentation.name(of: item) as NSString).size(withAttributes: [.font: nameFont]).width
             return (item.windowID, min(max(textWidth.rounded(.up) + 14, minimumItemWidth), 120))
         }, uniquingKeysWith: { first, _ in first })
-    }
-}
-
-private extension MenuBarLayout {
-    /// Off screen although its section is shown and its app draws it, as
-    /// the Arrange window keeps every section shown.
-    func doesNotFit(_ item: MenuBarItem) -> Bool {
-        !item.isOnScreen && !isNotDrawn(item)
     }
 }
 
@@ -330,19 +317,17 @@ struct ArrangeCanvas: View {
                 )
             }
             if let overflow = content.overflow {
-                overflowMarks(endX: overflow.endX, itemCount: overflow.itemCount, sectionSpans: strip.sectionSpans, stripHeight: stripHeight)
+                Group {
+                    overflowMarks(endX: overflow.endX, itemCount: overflow.itemCount, sectionSpans: strip.sectionSpans, stripHeight: stripHeight)
+                }
+                .animation(Self.spring, value: overflow.endX)
             }
             ForEach(Array(content.entries.enumerated()), id: \.element.id) { index, entry in
                 entryView(entry, frame: strip.frames[index].offsetBy(dx: 0, dy: Self.headerHeight))
             }
             if !systemItems.isEmpty {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Placed by macOS").font(.system(size: 12, weight: .semibold))
-                    Text("Can't be moved").font(.system(size: 10.5))
-                }
-                .foregroundStyle(.secondary)
-                .fixedSize()
-                .offset(x: trailingX + Self.iconWidth + 4)
+                SectionHeading(title: "Placed by macOS", caption: "Can't be moved", isDimmed: true)
+                    .offset(x: trailingX + Self.iconWidth + 4)
             }
             HStack(spacing: 0) {
                 Image(nsImage: BattleAxeIcon.image())
@@ -373,11 +358,10 @@ struct ArrangeCanvas: View {
                 DiagonalLines(spacing: 8)
                     .stroke(Color.primary.opacity(0.07), lineWidth: 4)
                     .frame(width: span.upperBound - span.lowerBound, height: stripHeight)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .clipShape(SectionBackground.shape)
                     .frame(width: shadedWidth, height: stripHeight, alignment: .leading)
                     .clipped()
                     .offset(x: span.lowerBound, y: Self.headerHeight)
-                    .animation(Self.spring, value: endX)
             }
         }
         Path { path in
@@ -385,14 +369,12 @@ struct ArrangeCanvas: View {
             path.addLine(to: CGPoint(x: endX, y: Self.headerHeight + stripHeight + Self.overflowLabelHeight))
         }
         .stroke(Self.overflowColor, style: StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
-        .animation(Self.spring, value: endX)
         Text(itemCount == 1 ? "← No room for this one right now" : "← No room for these \(itemCount) right now")
             .font(.system(size: 11))
             .foregroundStyle(Self.overflowColor)
             .fixedSize()
             .frame(width: endX - 6, alignment: .trailing)
             .offset(y: Self.headerHeight + stripHeight + 3)
-            .animation(Self.spring, value: endX)
     }
 
     @ViewBuilder
@@ -406,7 +388,7 @@ struct ArrangeCanvas: View {
             case .divider:
                 DividerChip(role: content.dividerRole(of: entry), isLifted: isLifted)
             case .item(let item):
-                let status: ItemChip.Status = content.layout.isNotDrawn(item) ? .notDrawn : (content.layout.doesNotFit(item) ? .doesNotFit : .shown)
+                let status: ItemChip.Status = content.layout.isNotDrawn(item) ? .notDrawn : (item.isOnScreen ? .shown : .doesNotFit)
                 itemChip(item, status: status, isLifted: isLifted)
             }
         }
@@ -451,24 +433,37 @@ private extension MenuBarSection {
     }
 }
 
+private struct SectionHeading: View {
+    let title: String
+    let caption: String
+    let isDimmed: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(title).font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(isDimmed ? .secondary : .primary)
+            Text(caption).font(.system(size: 10.5)).foregroundStyle(.secondary)
+        }
+        .fixedSize()
+    }
+}
+
 private struct SectionBackground: View {
+    static let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
+
     let section: MenuBarSection
     let frame: CGRect
     let isDropTarget: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Text(section.title).font(.system(size: 12, weight: .semibold))
-            Text(section.caption).font(.system(size: 10.5)).foregroundStyle(.secondary)
-        }
-        .fixedSize()
-        .offset(x: frame.minX + 4)
+        SectionHeading(title: section.title, caption: section.caption, isDimmed: false)
+            .offset(x: frame.minX + 4)
         .animation(ArrangeCanvas.spring, value: frame.minX)
 
-        RoundedRectangle(cornerRadius: 10, style: .continuous)
+        Self.shape
             .fill(section.tint.opacity(isDropTarget ? 0.2 : 0.1))
             .overlay {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                Self.shape
                     .strokeBorder(isDropTarget ? Color.accentColor.opacity(0.55) : .clear, lineWidth: 1.5)
             }
             .frame(width: frame.width, height: frame.height)
@@ -489,32 +484,27 @@ private struct ItemChip: View {
     @State private var isHovered = false
 
     var body: some View {
-        Group {
-            if status == .notDrawn {
-                VStack(spacing: 3) {
-                    iconImage
-                        .scaleEffect(0.6)
-                        .frame(width: 24, height: 24)
-                        .opacity(0.5)
-                        .background(Circle().strokeBorder(.tertiary, style: StrokeStyle(lineWidth: 1, dash: [2, 2])))
-                    Text(name)
-                        .font(Font(ArrangeContent.nameFont))
-                        .lineLimit(1)
-                        .foregroundStyle(.secondary)
-                    Text("Not showing").font(.system(size: 9.5)).foregroundStyle(.tertiary)
-                }
-                .padding(.horizontal, 4)
+        let isNotDrawn = status == .notDrawn
+        VStack(spacing: isNotDrawn ? 3 : 4) {
+            if isNotDrawn {
+                iconImage
+                    .scaleEffect(0.6)
+                    .frame(width: 24, height: 24)
+                    .opacity(0.5)
+                    .background(Circle().strokeBorder(.tertiary, style: StrokeStyle(lineWidth: 1, dash: [2, 2])))
             } else {
-                VStack(spacing: 4) {
-                    iconImage.frame(height: 24)
-                    Text(name)
-                        .font(Font(ArrangeContent.nameFont))
-                        .lineLimit(1)
-                }
-                .padding(.horizontal, 4)
-                .opacity(isDimmed ? 0.45 : 1)
+                iconImage.frame(height: 24)
+            }
+            Text(name)
+                .font(Font(ArrangeContent.nameFont))
+                .lineLimit(1)
+                .foregroundStyle(isNotDrawn ? .secondary : .primary)
+            if isNotDrawn {
+                Text("Not showing").font(.system(size: 9.5)).foregroundStyle(.tertiary)
             }
         }
+        .padding(.horizontal, 4)
+        .opacity(isDimmed ? 0.45 : 1)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
             RoundedRectangle(cornerRadius: 8, style: .continuous)

@@ -26,18 +26,16 @@ struct ItemPresentation {
         for item in items {
             let app = NSRunningApplication(processIdentifier: item.ownerPID)
             let label = accessibilityLabels[item.windowID]
+            let systemItem = SystemItem(accessibilityIdentifier: label?.identifier, title: item.title, bundleIdentifier: app?.bundleIdentifier)
             names[item.windowID] = ItemNaming.name(
                 appName: app?.localizedName ?? item.ownerName,
                 isSystemProcess: app?.bundleURL?.path.hasPrefix("/System/") ?? false,
                 appItemCount: itemCountByOwner[item.ownerPID, default: 0],
+                systemItem: systemItem,
                 title: item.title,
                 accessibilityName: label?.name
             )
-            symbolNames[item.windowID] = SystemItemSymbols.symbolName(
-                accessibilityIdentifier: label?.identifier,
-                title: item.title,
-                bundleIdentifier: app?.bundleIdentifier
-            )
+            symbolNames[item.windowID] = systemItem?.symbolName
         }
         self.names = names
         self.symbolNames = symbolNames
