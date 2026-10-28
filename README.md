@@ -2,6 +2,8 @@
 
 A free, open-source menu bar manager for macOS 15 and 26. It hides the menu bar items you rarely use, keeps every item one click away, and lets you rearrange them by dragging.
 
+<img src="docs/images/arrange-panel.png" width="1024" alt="The Arrange Menu Bar panel below the menu bar, showing items in the Always Hidden, Hidden and Shown sections, with the rest of the screen dimmed">
+
 ## Install
 
 Download the zip from the [latest release](https://github.com/petekp/barbarian/releases/latest), unzip it, and move Barbarian to Applications. Or install it with Homebrew:
@@ -21,6 +23,8 @@ Barbarian checks for updates and installs them itself.
 
 ## Use
 
+<img src="docs/images/menu-bar.png" width="524" alt="The menu bar with Hidden items revealed beside Barbarian's axe icon">
+
 Barbarian adds an icon and two dividers to the menu bar. Items right of the ‹ divider are shown. Items between the « and ‹ dividers are hidden. Items left of « stay hidden until you ask for all of them.
 
 | To | Do |
@@ -31,6 +35,8 @@ Barbarian adds an icon and two dividers to the menu bar. Items right of the ‹ 
 | Rearrange | Choose Arrange Menu Bar… from that menu and drag items or dividers. Or show every item, so both dividers are visible, and hold Command while dragging icons in the menu bar |
 
 Hidden items hide again a few seconds after the pointer leaves the menu bar.
+
+<img src="docs/images/items-menu.png" width="254" alt="Barbarian's items menu, listing every item by section">
 
 ## Privacy
 
