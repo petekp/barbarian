@@ -53,8 +53,8 @@ final class ItemAccess {
     }
 
     /// The spot the item came from: left of its old right neighbor, or right
-    /// of its old left neighbor when it was rightmost. An item that had no
-    /// position goes back to the far left, where items that do not fit sit.
+    /// of its old left neighbor when it was rightmost. An item missing from
+    /// `layout` goes to the far left.
     static func returnDestination(for item: MenuBarItem, in layout: MenuBarLayout) -> MoveDestination? {
         let ids = layout.entries.map(\.id)
         guard let index = ids.firstIndex(of: item.windowID) else {

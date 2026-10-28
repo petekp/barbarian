@@ -17,7 +17,7 @@ Barbarian is a Swift package with three targets. The app is a menu bar agent wit
 - **Section**: Shown, Hidden or Always Hidden. Items left of the left divider are Always Hidden. Items between the dividers are Hidden. Items between the right divider and the icon are Shown. Items right of the icon belong to macOS (Control Center, Siri, the clock) and are not managed.
 - **Collapsed divider**: a divider given a length of 10,000 points. macOS caps its window at 5,016 points, still wider than any display, and lays out everything to its left off screen.
 - **Active menu bar**: the menu bar of the display in use. Barbarian finds it as the menu bar holding its own icon's window. With several displays, each has a menu bar and each item has a window in every one. The item's own window sits in the active menu bar and the rest are copies. Barbarian reads, moves and clicks items in the active menu bar.
-- **Unplaced item**: an item macOS gives no position, because it does not fit or its app has hidden it.
+- **Switched-off item**: an item whose app has hidden it, such as the input menu when it is turned off. Barbarian leaves these out everywhere.
 
 ## How each feature works
 
@@ -31,7 +31,7 @@ Barbarian is a Swift package with three targets. The app is a menu bar agent wit
 
 **Names.** `ItemNaming` in Core picks an item's name: the app's name, unless the app owns several items or is part of macOS, such as SystemUIServer for Siri. Then it uses a known Control Center title, the Accessibility name, or the window title. `ItemPresentation` gathers those inputs once per layout.
 
-**The items menu.** Right-click or Control-click the icon, or press its shortcut, Control-Option-Command-M unless changed. `ItemsMenu` lists managed items by section, then unplaced items. It leaves out items whose app is not drawing them. Typing selects an item by name.
+**The items menu.** Right-click or Control-click the icon, or press its shortcut, Control-Option-Command-M unless changed. `ItemsMenu` lists managed items by section, including items that do not fit. It leaves out items whose app is not drawing them. Typing selects an item by name.
 
 **Opening an item.** `ItemAccess` handles a pick from the menu. With Accessibility, an on-screen item is clicked. An off-screen item is moved left of the icon, clicked, and moved back once its menu closes. Without Accessibility, Barbarian reveals the item's section, and asks for the permission if the item still does not fit.
 
@@ -54,7 +54,7 @@ Items and both dividers can be dragged. Dragging a divider moves Barbarian's own
 Observed on macOS 15.7 on a 14-inch MacBook Pro with a notch, unless noted.
 
 - On a display with a notch, status items appear only right of the notch. `NSScreen.auxiliaryTopRightArea` gives that area. Items that do not fit are dropped from the left end.
-- An item that does not fit is reported off screen at x = 0.
+- An item that does not fit keeps a real position, off screen and often at a negative x, and its app still reports an Accessibility element for it. An item its app has switched off is reported off screen at the origin and has no Accessibility element. Checked on macOS 15.7.7 by overflowing a VM's menu bar on 2026-10-28.
 - Items left of a collapsed divider are reported off screen at a large negative x, in their real order. This is why sections can be read while collapsed.
 - An item whose app stops drawing it, such as Now Playing with nothing playing, is reported off screen at a frame inside the visible bar.
 - A status item with no saved position appears at the left end of the status items. Barbarian relies on this so that the dividers start left of everything on first launch and nothing is hidden.

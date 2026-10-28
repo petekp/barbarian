@@ -14,7 +14,7 @@ struct ItemPresentation {
     private let images: ItemImageCache?
 
     init(layout: MenuBarLayout?, images: ItemImageCache?) {
-        self.init(items: layout.map { $0.entries.compactMap(\.item) + $0.systemItems + $0.unplacedItems } ?? [], images: images)
+        self.init(items: layout.map { $0.entries.compactMap(\.item) + $0.systemItems } ?? [], images: images)
     }
 
     init(items: [MenuBarItem], images: ItemImageCache?) {

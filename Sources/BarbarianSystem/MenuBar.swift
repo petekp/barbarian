@@ -3,8 +3,8 @@ import BarbarianCore
 /// One display's menu bar and the items in it, read from one window list.
 public struct MenuBar: Sendable {
     public let display: MenuBarDisplay
-    /// The items in this menu bar, in no particular order. Includes items
-    /// that do not fit and are off screen. See `MenuBarMembership`.
+    /// The items in this menu bar, in no particular order, on screen or not.
+    /// See `MenuBarMembership`.
     public let items: [MenuBarItem]
 
     public init(display: MenuBarDisplay, windows: [MenuBarItem]) {

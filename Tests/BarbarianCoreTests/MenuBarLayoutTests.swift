@@ -49,7 +49,7 @@ private func layout(_ items: [MenuBarItem]) throws -> MenuBarLayout {
     #expect(bar.items(in: .shown).map(\.windowID) == [2])
 }
 
-@Test func itemsThatDoNotFitAreUnplacedAndOffScreen() throws {
+@Test func anItemItsAppSwitchedOffIsLeftOut() throws {
     let bar = try layout([
         item(1, x: 0, onScreen: false),
         item(102, x: 900, width: 14),
@@ -58,7 +58,7 @@ private func layout(_ items: [MenuBarItem]) throws -> MenuBarLayout {
         item(100, x: 958),
     ])
 
-    #expect(bar.unplacedItems.map(\.windowID) == [1])
+    #expect(!bar.entries.map(\.id).contains(1))
     #expect(bar.section(of: 1) == nil)
 }
 

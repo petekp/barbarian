@@ -10,8 +10,7 @@ import CoreGraphics
 /// through their own windows, so it reads the active menu bar.
 public enum MenuBarMembership {
     /// The windows in `windows` that belong to the menu bar whose top edge
-    /// is at `menuBarTop`: windows on that edge, plus windows parked at the
-    /// origin because they do not fit.
+    /// is at `menuBarTop`.
     ///
     /// A window keeps the height of the menu bar it belongs to, even when
     /// macOS leaves it parked in another one, as it does with copies of items
@@ -21,10 +20,7 @@ public enum MenuBarMembership {
     public static func items(of windows: [MenuBarItem], inMenuBarAt menuBarTop: CGFloat) -> [MenuBarItem] {
         let onThisBar = windows.filter { $0.frame.minY == menuBarTop }
         guard let height = mostCommonHeight(of: onThisBar.filter(\.isOnScreen)) else { return [] }
-        return windows.filter { window in
-            let isPlaced = window.frame.minY == menuBarTop
-            return (isPlaced || !window.hasReportedPosition) && window.frame.height == height
-        }
+        return onThisBar.filter { $0.frame.height == height }
     }
 
     private static func mostCommonHeight(of windows: [MenuBarItem]) -> CGFloat? {

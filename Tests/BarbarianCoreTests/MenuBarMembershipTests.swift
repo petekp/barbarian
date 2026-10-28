@@ -26,7 +26,7 @@ private func window(_ id: WindowID, x: CGFloat, y: CGFloat, height: CGFloat, onS
     let external = MenuBarMembership.items(of: windows, inMenuBarAt: externalTop)
     let builtIn = MenuBarMembership.items(of: windows, inMenuBarAt: builtInTop)
 
-    #expect(Set(external.map(\.windowID)) == [1, 3, 5])
+    #expect(Set(external.map(\.windowID)) == [1, 3])
     #expect(Set(builtIn.map(\.windowID)) == [2, 4, 6])
 }
 
@@ -42,7 +42,6 @@ private func window(_ id: WindowID, x: CGFloat, y: CGFloat, height: CGFloat, onS
         statusArea: -399...2161
     ))
 
-    #expect(layout.unplacedItems.isEmpty)
     #expect(layout.entries.map(\.id) == [2])
 }
 

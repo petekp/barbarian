@@ -38,10 +38,6 @@ public struct MenuBarLayout: Sendable, Equatable {
     /// left of Barbarian's icon.
     public let entries: [Entry]
 
-    /// Managed items macOS gives no position, because they do not fit in
-    /// the menu bar.
-    public let unplacedItems: [MenuBarItem]
-
     public let controls: ControlItemIDs
 
     /// Items right of Barbarian's icon, left to right. They belong to macOS
@@ -67,7 +63,7 @@ public struct MenuBarLayout: Sendable, Equatable {
         guard let icon = items.first(where: { $0.windowID == controls.icon }) else { return nil }
         self.controls = controls
 
-        let placed = items.filter { $0.hasReportedPosition && $0.windowID != controls.icon }
+        let placed = items.filter { !$0.isSwitchedOff && $0.windowID != controls.icon }
         let managed = placed
             .filter { $0.frame.minX < icon.frame.minX }
             .sorted { $0.frame.minX < $1.frame.minX }
@@ -78,7 +74,6 @@ public struct MenuBarLayout: Sendable, Equatable {
         systemItems = placed
             .filter { $0.frame.minX > icon.frame.minX }
             .sorted { $0.frame.minX < $1.frame.minX }
-        unplacedItems = items.filter { !$0.hasReportedPosition && !controls.dividers.contains($0.windowID) }
         let leftmostOnScreenX = (managed + [icon]).filter(\.isOnScreen).map(\.frame.minX).min() ?? icon.frame.minX
         notDrawnItems = Set(entries.compactMap(\.item).filter { item in
             !item.isOnScreen
@@ -88,9 +83,8 @@ public struct MenuBarLayout: Sendable, Equatable {
         }.map(\.windowID))
     }
 
-    private init(entries: [Entry], unplacedItems: [MenuBarItem], controls: ControlItemIDs, systemItems: [MenuBarItem], notDrawnItems: Set<WindowID>) {
+    private init(entries: [Entry], controls: ControlItemIDs, systemItems: [MenuBarItem], notDrawnItems: Set<WindowID>) {
         self.entries = entries
-        self.unplacedItems = unplacedItems
         self.controls = controls
         self.systemItems = systemItems
         self.notDrawnItems = notDrawnItems
@@ -131,7 +125,7 @@ public struct MenuBarLayout: Sendable, Equatable {
             let insertionIndex = leftNeighbor.flatMap { id in ordered.firstIndex { $0.id == id } }.map { $0 + 1 } ?? 0
             ordered.insert(staleEntry, at: insertionIndex)
         }
-        return MenuBarLayout(entries: Self.assigningDividerRoles(ordered), unplacedItems: unplacedItems, controls: controls, systemItems: systemItems, notDrawnItems: stale)
+        return MenuBarLayout(entries: Self.assigningDividerRoles(ordered), controls: controls, systemItems: systemItems, notDrawnItems: stale)
     }
 
     /// The entries with each divider's role set by position: the left
@@ -259,10 +253,12 @@ public struct MenuBarLayout: Sendable, Equatable {
 }
 
 extension MenuBarItem {
-    /// macOS reports an item that does not fit at the origin and off screen.
+    /// macOS reports an item its app has switched off, as the input menu is
+    /// when hidden, at the origin and off screen. An item that does not fit
+    /// keeps a real position, often left of the screen.
     /// The origin is the top left of the main display, so on a display above
     /// or left of it an item can sit at x = 0 with another y.
-    var hasReportedPosition: Bool {
-        isOnScreen || frame.origin != .zero
+    var isSwitchedOff: Bool {
+        !isOnScreen && frame.origin == .zero
     }
 }
