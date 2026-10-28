@@ -297,23 +297,6 @@ struct LayoutView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            ZStack {
-                Text("Drag items or the dividers to rearrange. You can also hold ⌘ and drag icons in the menu bar itself.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 28)
-                Button(action: onClose) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 20, height: 20)
-                        .background(.quaternary, in: Circle())
-                }
-                .buttonStyle(.plain)
-                .keyboardShortcut(.cancelAction)
-                .help("Close (Esc)")
-                .frame(maxWidth: .infinity, alignment: .trailing)
-            }
             if !model.accessibilityGranted {
                 AccessibilityBanner(onAllow: AccessibilityPermission.requestAndOpenSettings)
             }
@@ -327,15 +310,26 @@ struct LayoutView: View {
                         onDragChanged: model.dragChanged(_:pointerX:startX:),
                         onDragEnded: model.dragEnded
                     )
-                    .padding(.vertical, 4)
+                    .padding(.vertical, Self.canvasPadding)
                 }
                 .frame(width: min(model.frozenCanvasWidth ?? ArrangeCanvas.width(of: content), maximumCanvasWidth))
+                .overlay(alignment: .topTrailing) {
+                    closeButton
+                        .frame(height: SectionHeading.height)
+                        .padding(.top, Self.canvasPadding)
+                }
+            } else {
+                closeButton.frame(maxWidth: .infinity, alignment: .trailing)
             }
             if let errorMessage = model.errorMessage {
                 Text(errorMessage).foregroundStyle(.red).font(.callout)
             }
+            Text("Drag items or the dividers to rearrange. You can also hold ⌘ and drag icons in the menu bar itself.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
         }
-        .padding(EdgeInsets(top: 14, leading: 20, bottom: 18, trailing: 16))
+        .padding(EdgeInsets(top: 16, leading: 20, bottom: 16, trailing: 16))
         .fixedSize()
         .background {
             PanelBackground(material: .popover).clipShape(LayoutPanel.shape)
@@ -343,6 +337,21 @@ struct LayoutView: View {
         .overlay {
             LayoutPanel.shape.strokeBorder(.white.opacity(0.14), lineWidth: 1)
         }
+    }
+
+    private static let canvasPadding: CGFloat = 4
+
+    private var closeButton: some View {
+        Button(action: onClose) {
+            Image(systemName: "xmark")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(.secondary)
+                .frame(width: 20, height: 20)
+                .background(.quaternary, in: Circle())
+        }
+        .buttonStyle(.plain)
+        .keyboardShortcut(.cancelAction)
+        .help("Close (Esc)")
     }
 }
 
@@ -530,6 +539,8 @@ private extension MenuBarSection {
 }
 
 private struct SectionHeading: View {
+    static let height: CGFloat = 30
+
     let title: String
     let caption: String
     let isDimmed: Bool
@@ -540,6 +551,7 @@ private struct SectionHeading: View {
                 .foregroundStyle(isDimmed ? .secondary : .primary)
             Text(caption).font(.system(size: 10.5)).foregroundStyle(.secondary)
         }
+        .frame(height: Self.height, alignment: .top)
         .fixedSize()
     }
 }
