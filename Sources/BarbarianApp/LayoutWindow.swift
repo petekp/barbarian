@@ -297,6 +297,9 @@ struct ArrangeCanvas: View {
     static let coordinateSpace = "arrange"
     static let spring = Animation.spring(duration: 0.34, bounce: 0.12)
     private static let headerHeight: CGFloat = 34
+    /// The margin between a section's edge and its entries, the same on
+    /// all four sides.
+    private static let stripInset = ArrangeContent.metrics.sectionPadding
     private static let trailingGap: CGFloat = 10
     private static let iconWidth: CGFloat = 40
     private static let overflowLabelHeight: CGFloat = 20
@@ -305,6 +308,8 @@ struct ArrangeCanvas: View {
     var body: some View {
         let strip = content.strip
         let stripHeight = ArrangeContent.metrics.height
+        let sectionHeight = stripHeight + 2 * Self.stripInset
+        let stripY = Self.headerHeight + Self.stripInset
         let systemItems = content.layout.systemItems
         let trailingX = strip.width + Self.trailingGap
         let systemItemsWidth = systemItems.map { content.widths[$0.windowID] ?? 0 }.reduce(0, +)
@@ -312,18 +317,18 @@ struct ArrangeCanvas: View {
             ForEach(Array(zip(MenuBarSection.allCases, strip.sectionSpans)), id: \.0) { section, span in
                 SectionBackground(
                     section: section,
-                    frame: CGRect(x: span.lowerBound, y: Self.headerHeight, width: span.upperBound - span.lowerBound, height: stripHeight),
+                    frame: CGRect(x: span.lowerBound, y: Self.headerHeight, width: span.upperBound - span.lowerBound, height: sectionHeight),
                     isDropTarget: drag.map { span.contains($0.entryCenterX) } ?? false
                 )
             }
             if let overflow = content.overflow {
                 Group {
-                    overflowMarks(endX: overflow.endX, itemCount: overflow.itemCount, sectionSpans: strip.sectionSpans, stripHeight: stripHeight)
+                    overflowMarks(endX: overflow.endX, itemCount: overflow.itemCount, sectionSpans: strip.sectionSpans, sectionHeight: sectionHeight)
                 }
                 .animation(Self.spring, value: overflow.endX)
             }
             ForEach(Array(content.entries.enumerated()), id: \.element.id) { index, entry in
-                entryView(entry, frame: strip.frames[index].offsetBy(dx: 0, dy: Self.headerHeight))
+                entryView(entry, frame: strip.frames[index].offsetBy(dx: 0, dy: stripY))
             }
             if !systemItems.isEmpty {
                 SectionHeading(title: "Placed by macOS", caption: "Can't be moved", isDimmed: true)
@@ -338,11 +343,11 @@ struct ArrangeCanvas: View {
                         .frame(width: content.widths[item.windowID], height: stripHeight)
                 }
             }
-            .offset(x: trailingX, y: Self.headerHeight)
+            .offset(x: trailingX, y: stripY)
         }
         .frame(
             width: trailingX + Self.iconWidth + systemItemsWidth,
-            height: Self.headerHeight + stripHeight + (content.overflow == nil ? 0 : Self.overflowLabelHeight),
+            height: Self.headerHeight + sectionHeight + (content.overflow == nil ? 0 : Self.overflowLabelHeight),
             alignment: .topLeading
         )
         .coordinateSpace(.named(Self.coordinateSpace))
@@ -351,22 +356,22 @@ struct ArrangeCanvas: View {
     /// Shading over the items that do not fit, inside their sections, a
     /// dashed line where the room ends, and one label under the line.
     @ViewBuilder
-    private func overflowMarks(endX: CGFloat, itemCount: Int, sectionSpans: [ClosedRange<CGFloat>], stripHeight: CGFloat) -> some View {
+    private func overflowMarks(endX: CGFloat, itemCount: Int, sectionSpans: [ClosedRange<CGFloat>], sectionHeight: CGFloat) -> some View {
         ForEach(Array(sectionSpans.enumerated()), id: \.offset) { _, span in
             let shadedWidth = min(span.upperBound, endX) - span.lowerBound
             if shadedWidth > 0 {
                 DiagonalLines(spacing: 8)
                     .stroke(Color.primary.opacity(0.07), lineWidth: 4)
-                    .frame(width: span.upperBound - span.lowerBound, height: stripHeight)
+                    .frame(width: span.upperBound - span.lowerBound, height: sectionHeight)
                     .clipShape(SectionBackground.shape)
-                    .frame(width: shadedWidth, height: stripHeight, alignment: .leading)
+                    .frame(width: shadedWidth, height: sectionHeight, alignment: .leading)
                     .clipped()
                     .offset(x: span.lowerBound, y: Self.headerHeight)
             }
         }
         Path { path in
             path.move(to: CGPoint(x: endX, y: Self.headerHeight - 4))
-            path.addLine(to: CGPoint(x: endX, y: Self.headerHeight + stripHeight + Self.overflowLabelHeight))
+            path.addLine(to: CGPoint(x: endX, y: Self.headerHeight + sectionHeight + Self.overflowLabelHeight))
         }
         .stroke(Self.overflowColor, style: StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
         Text(itemCount == 1 ? "← No room for this one right now" : "← No room for these \(itemCount) right now")
@@ -374,7 +379,7 @@ struct ArrangeCanvas: View {
             .foregroundStyle(Self.overflowColor)
             .fixedSize()
             .frame(width: endX - 6, alignment: .trailing)
-            .offset(y: Self.headerHeight + stripHeight + 3)
+            .offset(y: Self.headerHeight + sectionHeight + 3)
     }
 
     @ViewBuilder
@@ -482,6 +487,9 @@ private struct ItemChip: View {
     let isLifted: Bool
 
     @State private var isHovered = false
+    @Environment(\.colorScheme) private var colorScheme
+
+    private static let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
 
     var body: some View {
         let isNotDrawn = status == .notDrawn
@@ -507,11 +515,19 @@ private struct ItemChip: View {
         .opacity(isDimmed ? 0.45 : 1)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(isLifted ? AnyShapeStyle(.regularMaterial) : AnyShapeStyle(Color.primary.opacity(isHovered ? 0.06 : 0)))
-                .shadow(color: .black.opacity(isLifted ? 0.22 : 0), radius: isLifted ? 10 : 0, y: isLifted ? 5 : 0)
+            if isLifted {
+                Self.shape
+                    .fill(.regularMaterial)
+                    .overlay { GlassBevel(shape: Self.shape) }
+                    .shadow(color: .black.opacity(0.22), radius: 10, y: 5)
+            } else if isHovered {
+                Self.shape
+                    .fill(.white.opacity(colorScheme == .dark ? 0.07 : 0.45))
+                    .overlay { GlassBevel(shape: Self.shape) }
+                    .shadow(color: .black.opacity(colorScheme == .dark ? 0.25 : 0.08), radius: 1.5, y: 1)
+            }
         }
-        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .contentShape(Self.shape)
         .scaleEffect(isLifted ? 1.08 : 1)
         .animation(.spring(duration: 0.25, bounce: 0.2), value: isLifted)
         .animation(.easeOut(duration: 0.12), value: isHovered)
@@ -541,6 +557,24 @@ private struct ItemChip: View {
         case .notDrawn: "\(name) isn't showing right now. Its app shows it only sometimes."
         case .placedByMacOS: "\(name) is placed by macOS"
         }
+    }
+}
+
+/// A thin edge lit from above, bright along the top and fading down, as on
+/// a pane of glass.
+private struct GlassBevel<S: InsettableShape>: View {
+    let shape: S
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        shape.strokeBorder(
+            LinearGradient(
+                colors: [.white.opacity(colorScheme == .dark ? 0.22 : 0.9), .white.opacity(colorScheme == .dark ? 0.03 : 0.2)],
+                startPoint: .top,
+                endPoint: .bottom
+            ),
+            lineWidth: 0.75
+        )
     }
 }
 
