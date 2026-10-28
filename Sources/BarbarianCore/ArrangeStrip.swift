@@ -1,6 +1,6 @@
 import CoreGraphics
 
-/// Where the Arrange window draws the managed part of the menu bar: one row,
+/// Where the Arrange panel draws the managed part of the menu bar: one row,
 /// left to right, items and the two dividers in menu bar order.
 ///
 /// The window draws entries at these frames and hit-tests the pointer

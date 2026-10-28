@@ -9,15 +9,14 @@ import SwiftUI
 /// just below the menu bar, and dims every display below the menu bar while
 /// open. A click on the dimmed area, Escape or the close button closes it.
 final class LayoutPanel: NSObject, NSWindowDelegate {
-    static let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
-
     private unowned let controller: AppController
     private let model: LayoutEditorModel
     private var panel: NSPanel?
+    private var hosting: NSHostingController<LayoutView>?
     private var dimmingWindows: [NSWindow] = []
     private var screen: NSScreen?
-    /// True while the panel waits for the revealed menu bar to settle.
-    private var isOpening = false
+    /// Waits for the revealed menu bar to settle, then shows the panel.
+    private var opening: Task<Void, Never>?
 
     /// Space between the panel and the screen's right edge and the menu bar.
     private static let margin: CGFloat = 8
@@ -34,49 +33,48 @@ final class LayoutPanel: NSObject, NSWindowDelegate {
     var isOpen: Bool { panel?.isVisible ?? false }
 
     func show() {
-        guard !isOpen, !isOpening, let screen = controller.iconScreen ?? NSScreen.main else { return }
+        guard !isOpen, opening == nil, let screen = controller.iconScreen ?? NSScreen.main else { return }
         self.screen = screen
-        isOpening = true
         model.takeBaseline()
         controller.isPinnedOpen = true
-        Task {
+        opening = Task {
             await model.loadSettledLayout()
-            guard isOpening else { return }
-            isOpening = false
-            present(on: screen)
+            guard !Task.isCancelled else { return }
+            opening = nil
+            present()
             model.startRefreshing()
         }
     }
 
-    private func present(on screen: NSScreen) {
-        let panel = self.panel ?? makePanel()
-        self.panel = panel
-        let maximumCanvasWidth = screen.frame.width - 2 * Self.margin - 36
-        (panel.contentViewController as? NSHostingController<LayoutView>)?.rootView =
-            LayoutView(model: model, maximumCanvasWidth: maximumCanvasWidth, onClose: { [weak self] in self?.close() })
+    private func present() {
+        guard let screen else { return }
+        let view = LayoutView(model: model, maximumWidth: screen.frame.width - 2 * Self.margin, onClose: { [weak self] in self?.close() })
+        let panel: NSPanel
+        if let existing = self.panel, let hosting {
+            panel = existing
+            hosting.rootView = view
+        } else {
+            panel = makePanel(showing: view)
+        }
         pin(panel)
 
-        showDimming()
+        showDimming(on: NSScreen.screens)
         panel.alphaValue = 0
-        NSApp.activate()
-        panel.makeKeyAndOrderFront(nil)
-        panel.orderFrontRegardless()
-        fade(in: [panel] + dimmingWindows)
+        panel.bringForward()
+        fade([panel] + dimmingWindows, to: 1)
     }
 
     func close() {
-        guard isOpen || isOpening else { return }
-        isOpening = false
+        guard isOpen || opening != nil else { return }
+        opening?.cancel()
+        opening = nil
         model.stopRefreshing()
         controller.isPinnedOpen = false
         let windows = [panel].compactMap { $0 } + dimmingWindows
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = Self.fadeDuration
-            windows.forEach { $0.animator().alphaValue = 0 }
-        } completionHandler: {
-            MainActor.assumeIsolated { windows.forEach { $0.orderOut(nil) } }
-        }
         dimmingWindows = []
+        fade(windows, to: 0) {
+            windows.forEach { $0.orderOut(nil) }
+        }
     }
 
     func windowDidResize(_ notification: Notification) {
@@ -84,7 +82,7 @@ final class LayoutPanel: NSObject, NSWindowDelegate {
         pin(panel)
     }
 
-    private func makePanel() -> NSPanel {
+    private func makePanel(showing view: LayoutView) -> NSPanel {
         let panel = KeyablePanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.isReleasedWhenClosed = false
         panel.isOpaque = false
@@ -92,10 +90,12 @@ final class LayoutPanel: NSObject, NSWindowDelegate {
         panel.hasShadow = true
         panel.level = Self.panelLevel
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        let hosting = NSHostingController(rootView: LayoutView(model: model, maximumCanvasWidth: 1000, onClose: {}))
+        let hosting = NSHostingController(rootView: view)
         hosting.sizingOptions = [.preferredContentSize]
         panel.contentViewController = hosting
         panel.delegate = self
+        self.panel = panel
+        self.hosting = hosting
         return panel
     }
 
@@ -104,17 +104,15 @@ final class LayoutPanel: NSObject, NSWindowDelegate {
     private func pin(_ panel: NSPanel) {
         guard let screen else { return }
         let size = panel.frame.size
-        let menuBarBottom = screen.visibleFrame.maxY
+        let menuBarBottom = screen.frame.maxY - screen.menuBarHeight
         panel.setFrameOrigin(NSPoint(x: screen.frame.maxX - Self.margin - size.width, y: menuBarBottom - Self.margin - size.height))
         panel.invalidateShadow()
     }
 
-    private func showDimming() {
-        dimmingWindows.forEach { $0.orderOut(nil) }
-        dimmingWindows = NSScreen.screens.map { screen in
-            let menuBarHeight = screen.frame.maxY - screen.visibleFrame.maxY
+    private func showDimming(on screens: [NSScreen]) {
+        dimmingWindows = screens.map { screen in
             var frame = screen.frame
-            frame.size.height -= menuBarHeight
+            frame.size.height -= screen.menuBarHeight
             let window = NSWindow(contentRect: frame, styleMask: .borderless, backing: .buffered, defer: false)
             window.isReleasedWhenClosed = false
             window.isOpaque = false
@@ -128,10 +126,12 @@ final class LayoutPanel: NSObject, NSWindowDelegate {
         }
     }
 
-    private func fade(in windows: [NSWindow]) {
+    private func fade(_ windows: [NSWindow], to alpha: CGFloat, completion: (@MainActor () -> Void)? = nil) {
         NSAnimationContext.runAnimationGroup { context in
             context.duration = Self.fadeDuration
-            windows.forEach { $0.animator().alphaValue = 1 }
+            windows.forEach { $0.animator().alphaValue = alpha }
+        } completionHandler: {
+            MainActor.assumeIsolated { completion?() }
         }
     }
 }

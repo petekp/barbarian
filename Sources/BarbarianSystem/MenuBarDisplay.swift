@@ -42,16 +42,22 @@ public struct MenuBarDisplay: Sendable, Equatable {
         CGEvent(source: nil)?.location ?? .zero
     }
 
-    /// A menu bar that hides until the pointer reaches the top of the screen
-    /// reports no height while hidden.
-    private static let minimumMenuBarHeight: CGFloat = 24
-
     init?(screen: NSScreen) {
         guard let displayID = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID else {
             return nil
         }
         bounds = CGDisplayBounds(displayID)
         statusArea = (screen.auxiliaryTopRightArea?.minX ?? bounds.minX)...bounds.maxX
-        menuBarHeight = max(screen.frame.maxY - screen.visibleFrame.maxY, Self.minimumMenuBarHeight)
+        menuBarHeight = screen.menuBarHeight
+    }
+}
+
+extension NSScreen {
+    /// A menu bar that hides until the pointer reaches the top of the screen
+    /// reports no height while hidden.
+    private static let minimumMenuBarHeight: CGFloat = 24
+
+    public var menuBarHeight: CGFloat {
+        max(frame.maxY - visibleFrame.maxY, Self.minimumMenuBarHeight)
     }
 }

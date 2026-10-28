@@ -14,12 +14,12 @@ final class AppController: NSObject, NSApplicationDelegate {
     private var hotKeys: [GlobalHotKey] = []
     private var commandObserver: NSObjectProtocol?
     private lazy var itemAccess = ItemAccess(controller: self)
-    private lazy var layoutWindow = LayoutPanel(controller: self)
+    private lazy var layoutPanel = LayoutPanel(controller: self)
     private lazy var settingsWindow = SettingsWindowController(controller: self)
     private let statusMessage = StatusMessage()
     let itemImages = ItemImageCache { Preferences.shared.showsItemImages }
 
-    /// Keeps every section on screen while the layout window is open.
+    /// Keeps every section on screen while the Arrange panel is open.
     var isPinnedOpen = false {
         didSet { setState(isPinnedOpen ? .showingAll : .showingShownOnly) }
     }
@@ -48,8 +48,8 @@ final class AppController: NSObject, NSApplicationDelegate {
         case .showAll: setState(.showingAll)
         case .hide: setState(.showingShownOnly)
         case .openMenu: showMenu()
-        case .openLayout: openLayoutWindow()
-        case .closeLayout: layoutWindow.close()
+        case .openLayout: openLayoutPanel()
+        case .closeLayout: layoutPanel.close()
         case .openItem(let id):
             guard let item = MenuBarWindowList.item(id) else { return }
             access(item)
@@ -65,13 +65,18 @@ final class AppController: NSObject, NSApplicationDelegate {
         return MenuBar(holding: { $0.windowID == iconID }, in: windows)
     }
 
+    /// The display whose menu bar holds Barbarian's icon.
+    var activeDisplay: MenuBarDisplay? {
+        activeMenuBar()?.display
+    }
+
     func currentLayout() -> MenuBarLayout? {
         guard let ids = controlItems.ids, let menuBar = activeMenuBar() else { return nil }
         return MenuBarLayout(items: menuBar.items, controls: ids, statusArea: menuBar.display.statusArea)
     }
 
     /// Captures the active menu bar's on-screen items for the items menu and
-    /// the Arrange window.
+    /// the Arrange panel.
     func captureItemImages() {
         guard itemImages.isOn(), let items = activeMenuBar()?.items else { return }
         Task { await itemImages.capture(items) }
@@ -143,8 +148,8 @@ final class AppController: NSObject, NSApplicationDelegate {
         controlItems.icon.button?.window?.screen
     }
 
-    func openLayoutWindow() {
-        layoutWindow.show()
+    func openLayoutPanel() {
+        layoutPanel.show()
     }
 
     func access(_ item: MenuBarItem) {

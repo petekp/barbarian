@@ -72,12 +72,9 @@ public struct MenuBarLayout: Sendable, Equatable {
             .filter { $0.frame.minX < icon.frame.minX }
             .sorted { $0.frame.minX < $1.frame.minX }
 
-        var dividersSeen = 0
-        entries = managed.map { item in
-            guard controls.dividers.contains(item.windowID) else { return .item(item) }
-            defer { dividersSeen += 1 }
-            return .divider(dividersSeen == 0 ? .alwaysHidden : .hidden, item.windowID)
-        }
+        entries = Self.assigningDividerRoles(managed.map { item in
+            controls.dividers.contains(item.windowID) ? .divider(.hidden, item.windowID) : .item(item)
+        })
         systemItems = placed
             .filter { $0.frame.minX > icon.frame.minX }
             .sorted { $0.frame.minX < $1.frame.minX }
@@ -120,7 +117,7 @@ public struct MenuBarLayout: Sendable, Equatable {
         }
         let stale = Set(entries.compactMap(\.item).filter { item in
             guard !item.isOnScreen else { return false }
-            return notDrawnItems.contains(item.windowID)
+            return isNotDrawn(item)
                 || (wasCollapsed(item.windowID) && baselineFrames[item.windowID] == item.frame)
         }.map(\.windowID))
         guard !stale.isEmpty else { return self }
@@ -134,14 +131,18 @@ public struct MenuBarLayout: Sendable, Equatable {
             let insertionIndex = leftNeighbor.flatMap { id in ordered.firstIndex { $0.id == id } }.map { $0 + 1 } ?? 0
             ordered.insert(staleEntry, at: insertionIndex)
         }
+        return MenuBarLayout(entries: Self.assigningDividerRoles(ordered), unplacedItems: unplacedItems, controls: controls, systemItems: systemItems, notDrawnItems: stale)
+    }
 
+    /// The entries with each divider's role set by position: the left
+    /// divider plays Always Hidden, the other Hidden.
+    private static func assigningDividerRoles(_ entries: [Entry]) -> [Entry] {
         var dividersSeen = 0
-        let entries = ordered.map { entry -> Entry in
+        return entries.map { entry in
             guard case .divider(_, let id) = entry else { return entry }
             defer { dividersSeen += 1 }
             return .divider(dividersSeen == 0 ? .alwaysHidden : .hidden, id)
         }
-        return MenuBarLayout(entries: entries, unplacedItems: unplacedItems, controls: controls, systemItems: systemItems, notDrawnItems: stale)
     }
 
     /// Reads a layout without knowing Barbarian's control items' IDs, as a
@@ -199,7 +200,7 @@ public struct MenuBarLayout: Sendable, Equatable {
 
     /// The positions in `order`, a rearranged copy of `entries`, of the
     /// items that would not fit with every section shown, as the Arrange
-    /// window keeps them.
+    /// panel keeps them.
     ///
     /// macOS fills the bar from the right and leaves out the leftmost items
     /// once it is full. As many items fit as are on screen now, so the items
@@ -212,7 +213,7 @@ public struct MenuBarLayout: Sendable, Equatable {
     }
 
     /// The entries in `order` where it names them, else in their own order,
-    /// with `moving` taken out and put back at `index`. The Arrange window
+    /// with `moving` taken out and put back at `index`. The Arrange panel
     /// shows this while a drag or a drop is under way.
     public func entries(inOrder order: [WindowID]?, moving: Entry? = nil, to index: Int = 0) -> [Entry] {
         let entriesByID = Dictionary(entries.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })

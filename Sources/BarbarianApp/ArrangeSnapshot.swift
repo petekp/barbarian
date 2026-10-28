@@ -4,7 +4,7 @@ import BarbarianSystem
 import SwiftUI
 
 /// `Barbarian --render-arrange <file.png> [--lift <window ID> <index>] [--item-images]`
-/// draws the Arrange window's strip for the current menu bar to a PNG,
+/// draws the Arrange panel's strip for the current menu bar to a PNG,
 /// without opening a window. `--lift` draws one item or divider mid-drag over
 /// the gap it would open at `index` among the other entries. Items show their
 /// app's icon unless `--item-images` captures their own images, which makes
@@ -21,6 +21,7 @@ enum ArrangeSnapshot {
         if let images { capture(barbarian.menuBar.items, into: images) }
         let presentation = ItemPresentation(layout: layout, images: images)
         let widths = ArrangeContent.widths(of: layout, presentation: presentation)
+        let isCutOffByNotch = barbarian.menuBar.display.hasNotch
 
         var drag: EntryDrag?
         if let lift = arguments.firstIndex(of: "--lift") {
@@ -32,10 +33,11 @@ enum ArrangeSnapshot {
             else {
                 return RenderCommand.fail("--lift takes a managed item's or divider's window ID and an index.")
             }
-            drag = liftedDrag(of: entry, to: index, in: layout, widths: widths)
+            let resting = ArrangeContent(layout: layout, pendingOrder: nil, drag: nil, presentation: presentation, widths: widths, isCutOffByNotch: isCutOffByNotch)
+            drag = liftedDrag(of: entry, to: index, in: resting)
         }
 
-        let content = ArrangeContent(layout: layout, pendingOrder: nil, drag: drag, presentation: presentation, widths: widths, isCutOffByNotch: barbarian.menuBar.display.hasNotch)
+        let content = ArrangeContent(layout: layout, pendingOrder: nil, drag: drag, presentation: presentation, widths: widths, isCutOffByNotch: isCutOffByNotch)
         let isDark = NSApplication.shared.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let renderer = ImageRenderer(
             content: ArrangeCanvas(content: content, drag: drag, canDrag: true)
@@ -50,12 +52,12 @@ enum ArrangeSnapshot {
 
     /// A drag whose entry hovers just off its target, as it would under the
     /// pointer.
-    private static func liftedDrag(of entry: MenuBarLayout.Entry, to index: Int, in layout: MenuBarLayout, widths: [WindowID: CGFloat]) -> EntryDrag {
-        let entries = layout.entries(inOrder: nil, moving: entry, to: index)
-        let strip = ArrangeContent.strip(for: entries, widths: widths)
+    private static func liftedDrag(of entry: MenuBarLayout.Entry, to index: Int, in resting: ArrangeContent) -> EntryDrag {
+        let entries = resting.layout.entries(inOrder: nil, moving: entry, to: index)
+        let strip = ArrangeContent.strip(for: entries, widths: resting.widths)
         let frame = entries.firstIndex(of: entry).map { strip.frames[$0] } ?? .zero
-        let othersStrip = ArrangeContent.strip(for: layout.entries.filter { $0.id != entry.id }, widths: widths)
-        return EntryDrag(entry: entry, pointerX: frame.midX + 12, grabOffsetX: 0, targetIndex: index, othersStrip: othersStrip)
+        let othersStrip = ArrangeContent.strip(for: resting.entries.filter { $0.id != entry.id }, widths: resting.widths)
+        return EntryDrag(entry: entry, pointerX: frame.midX + 12, grabOffsetX: 0, targetIndex: index, othersStrip: othersStrip, canvasWidth: ArrangeCanvas.width(of: resting))
     }
 
     /// Fills `images` before drawing, when this process has Screen

@@ -26,7 +26,7 @@ import Testing
     #expect(policy.shouldRehide(now: left.addingTimeInterval(4), pointerLastInMenuBarAt: left, isMenuOpen: false, isPinnedOpen: false))
 }
 
-@Test func revealedItemsStayWhileAMenuIsOpenOrTheLayoutWindowPinsThem() {
+@Test func revealedItemsStayWhileAMenuIsOpenOrTheArrangePanelPinsThem() {
     let policy = AutoRehidePolicy(delay: 4)
     let left = Date(timeIntervalSince1970: 1_000)
     let later = left.addingTimeInterval(60)

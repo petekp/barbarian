@@ -6,7 +6,7 @@ import BarbarianSystem
 /// when they are hidden. Empty while `isOn` is false or without Screen
 /// Recording permission.
 ///
-/// Images are seen only in the items menu and the Arrange window, so items
+/// Images are seen only in the items menu and the Arrange panel, so items
 /// are captured when those open and when a section is revealed.
 @Observable
 final class ItemImageCache {

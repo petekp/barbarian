@@ -114,7 +114,7 @@ private final class MenuTarget: NSObject {
 
     @objc func showHidden() { controller?.toggle(.showingHidden) }
     @objc func showAll() { controller?.toggle(.showingAll) }
-    @objc func arrange() { controller?.openLayoutWindow() }
+    @objc func arrange() { controller?.openLayoutPanel() }
 
     @objc func grantAccessibility() { AccessibilityPermission.requestAndOpenSettings() }
 

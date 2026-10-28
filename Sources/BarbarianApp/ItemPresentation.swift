@@ -10,9 +10,7 @@ import BarbarianSystem
 /// symbol that looks like it, and any other item with its app's icon.
 struct ItemPresentation {
     private let names: [WindowID: String]
-    private let symbolNames: [WindowID: String]
-    /// Items whose symbol stands in for their capture.
-    private let prefersSymbol: Set<WindowID>
+    private let systemItems: [WindowID: SystemItem]
     private let images: ItemImageCache?
 
     init(layout: MenuBarLayout?, images: ItemImageCache?) {
@@ -24,8 +22,7 @@ struct ItemPresentation {
         let accessibilityLabels = AccessibilityItemLabels.labels(for: items)
         let itemCountByOwner = items.reduce(into: [Int32: Int]()) { $0[$1.ownerPID, default: 0] += 1 }
         var names: [WindowID: String] = [:]
-        var symbolNames: [WindowID: String] = [:]
-        var prefersSymbol: Set<WindowID> = []
+        var systemItems: [WindowID: SystemItem] = [:]
         for item in items {
             let app = NSRunningApplication(processIdentifier: item.ownerPID)
             let label = accessibilityLabels[item.windowID]
@@ -38,12 +35,10 @@ struct ItemPresentation {
                 title: item.title,
                 accessibilityName: label?.name
             )
-            symbolNames[item.windowID] = systemItem?.symbolName
-            if systemItem?.drawsText == true { prefersSymbol.insert(item.windowID) }
+            systemItems[item.windowID] = systemItem
         }
         self.names = names
-        self.symbolNames = symbolNames
-        self.prefersSymbol = prefersSymbol
+        self.systemItems = systemItems
     }
 
     func name(of item: MenuBarItem) -> String {
@@ -53,14 +48,15 @@ struct ItemPresentation {
     /// The item's own image scaled down to fit `size` points high, a symbol
     /// that looks like the item, or its app's icon at `size` points square.
     func icon(of item: MenuBarItem, size: CGFloat = 16) -> NSImage? {
-        if !prefersSymbol.contains(item.windowID), let captured = images?.image(of: item.windowID) {
+        let systemItem = systemItems[item.windowID]
+        if systemItem?.drawsText != true, let captured = images?.image(of: item.windowID) {
             let image = captured.copy() as! NSImage
             let scale = min(1, size / captured.size.height)
             image.size = NSSize(width: captured.size.width * scale, height: captured.size.height * scale)
             return image
         }
-        if let symbolName = symbolNames[item.windowID],
-           let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: name(of: item))?
+        if let systemItem,
+           let symbol = NSImage(systemSymbolName: systemItem.symbolName, accessibilityDescription: name(of: item))?
                .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: size * 0.8, weight: .regular)) {
             symbol.isTemplate = true
             return symbol
