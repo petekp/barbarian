@@ -19,24 +19,25 @@ Checked on macOS 15.7 on a 14-inch MacBook Pro with a notch, without Accessibili
 - Item images, rendered with `--render-arrange` from a terminal with Screen Recording on 2026-10-26: on-screen items show their own image, and hidden items show their app's icon until they have been on screen.
 - Reading the active menu bar with two displays, checked with `--print-items` on 2026-10-26 with the built-in display active: one entry per item, with real window IDs and Accessibility names.
 
+Checked in a Tart VM on macOS 15.7.7 with Accessibility, on 2026-10-28, with a debug build and eight placeholder menu bar apps spread across the sections. Clicks and drags went through the VM's VNC. Modifier keys, Option-click and hot keys were posted as CGEvents from the guest.
+
+- First launch on a new account: the icon is rightmost, both dividers sit at the far left, Settings opens by itself, and launch at login turns on with a "Login Item Added" notice. Turning it off in Settings removes the login item.
+- A click on the icon reveals Hidden and highlights the icon. Option-click reveals everything. Resting the pointer on the empty part of the bar reveals Hidden within a second.
+- Revealed items hide again about 4 seconds after the pointer leaves the bar, stay while the pointer is in it, and hide at once on a click elsewhere.
+- Right-click and Control-Option-Command-M open the items menu by section. Picking an off-screen item moves it beside the icon, opens its menu, and moves it back once the menu closes. Typing an item's name and pressing Return opens it too.
+- Control-Option-Command-B toggles Hidden.
+- The Arrange panel opens at the top right with the rest of the screen dimmed. Dragging an item to another section and back, and dragging a divider, moved the real items, checked with `--print-items`. Escape, the close button and a click on the dimmed area each close it.
+- Check for Updates… is in the items menu and disabled in a debug build.
+
 ## Built, not yet verified
 
-These need Accessibility permission or a real pointer, which no check has had.
-
-- Moving items and dividers by dropping in the layout window.
-- Dragging in the layout window with a real pointer: the spring animations, the haptic tick and the grab pointer.
-- The Arrange panel with a real pointer: opening without items sliding, from both the collapsed state and after Option-click; the frozen width during a drag; the hold after a drop until the menu bar matches; Escape, the close button and a click on the dimmed area. Core's stale-item and cutoff rules have tests, and the cutoff was checked with `--render-arrange --lift` on 2026-10-28.
+- The Arrange panel's motion: opening without items sliding, the frozen width during a drag, the haptic tick and the hold after a drop until the menu bar matches.
 - The Clock's icon and the "Cut off by the notch" label in the running app. Checked only with `--render-arrange`.
-- Revealing Hidden by resting the pointer on the empty part of the bar.
-- Rehiding on a click outside the menu bar.
-- The hot keys Control-Option-Command-B and Control-Option-Command-M.
-- Left-click, Option-click and right-click on the icon.
 - Item images inside the running app, which needs Barbarian to have Screen Recording.
 - Hover reveal on the Studio Display and the rest of the multi-display behavior inside the running app.
-- The Settings window inside the running app, its first-launch opening, and recording a shortcut. Its drawing was checked with `--render-settings`.
-- Launch at login, the icon's highlight while revealed, and the error popover.
+- Recording a shortcut in Settings, and the error popover.
+- A notarized release build: Gatekeeper, the hardened runtime with Accessibility, and Sparkle's update check, Check for Updates… and installing an update. They need a published release.
 - Everything on macOS 26.
-- Sparkle updates: the update check, the Check for Updates… item and installing an update. They need a published release and a release build.
 
 ## Known gaps
 

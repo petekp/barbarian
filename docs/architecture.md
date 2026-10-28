@@ -15,7 +15,7 @@ Barbarian is a Swift package with three targets. The app is a menu bar agent wit
 - **Item**: a status item window in the menu bar, owned by some app. `MenuBarItem` is one item as the window server reports it.
 - **Control items**: Barbarian's own three items. The icon sits rightmost of the items Barbarian manages. Two dividers sit to its left.
 - **Section**: Shown, Hidden or Always Hidden. Items left of the left divider are Always Hidden. Items between the dividers are Hidden. Items between the right divider and the icon are Shown. Items right of the icon belong to macOS (Control Center, Siri, the clock) and are not managed.
-- **Collapsed divider**: a divider stretched to 10,000 points. macOS lays out everything to its left off screen.
+- **Collapsed divider**: a divider given a length of 10,000 points. macOS caps its window at 5,016 points, still wider than any display, and lays out everything to its left off screen.
 - **Active menu bar**: the menu bar of the display in use. Barbarian finds it as the menu bar holding its own icon's window. With several displays, each has a menu bar and each item has a window in every one. The item's own window sits in the active menu bar and the rest are copies. Barbarian reads, moves and clicks items in the active menu bar.
 - **Unplaced item**: an item macOS gives no position, because it does not fit or its app has hidden it.
 
