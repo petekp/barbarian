@@ -10,6 +10,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     private var hoverStartedAt: Date?
     private var pollTimer: Timer?
     private var mouseDownMonitor: Any?
+    private var iconPressMonitor: Any?
     private var hotKeys: [GlobalHotKey] = []
     private var commandObserver: NSObjectProtocol?
     private lazy var itemAccess = ItemAccess(controller: self)
@@ -25,10 +26,9 @@ final class AppController: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         controlItems = ControlItems()
-        if let button = controlItems.icon.button {
-            button.target = self
-            button.action = #selector(iconClicked)
-            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        iconPressMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            let wasIconPress = MainActor.assumeIsolated { self?.handleIconPress(event) ?? false }
+            return wasIconPress ? nil : event
         }
         apply()
         startPolling()
@@ -106,18 +106,13 @@ final class AppController: NSObject, NSApplicationDelegate {
         controlItems.apply(state, layout: currentLayout())
     }
 
-    /// AppKit clears the icon's highlight when a click or menu on it ends,
-    /// after Barbarian has set it, so it is set again once that is done.
-    private func reapplyAfterClick() {
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            controlItems.highlightIcon(state)
-        }
-    }
-
-    @objc private func iconClicked() {
-        guard let event = NSApp.currentEvent else { return }
-        let wantsMenu = event.type == .rightMouseUp || event.modifierFlags.contains(.control)
+    /// Acts on a press of the icon and consumes it, as macOS's own items act
+    /// on press. Left to AppKit, a click highlights the icon while pressed
+    /// and clears it on release, which fights the highlight that shows a
+    /// section is revealed and makes the icon flicker.
+    private func handleIconPress(_ event: NSEvent) -> Bool {
+        guard event.window != nil, event.window === controlItems.icon.button?.window else { return false }
+        let wantsMenu = event.type == .rightMouseDown || event.modifierFlags.contains(.control)
         if wantsMenu {
             showMenu()
         } else if event.modifierFlags.contains(.option) {
@@ -125,7 +120,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         } else {
             toggle(.showingHidden)
         }
-        reapplyAfterClick()
+        return true
     }
 
     /// Pops the menu up from Barbarian's icon. `performClick` returns once
@@ -136,7 +131,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         controlItems.icon.menu = menu
         controlItems.icon.button?.performClick(nil)
         controlItems.icon.menu = nil
-        reapplyAfterClick()
+        controlItems.highlightIcon(state)
     }
 
     func openSettings() {
