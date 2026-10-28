@@ -7,9 +7,9 @@ The steps to take Barbarian from a personal tool to a public 0.1.0 release. The 
 | Decision | Recommendation | Why |
 |---|---|---|
 | License | MIT | Short, permissive and common for Mac utilities. The repo has no license today, so nobody may legally reuse the code. |
-| How people install it | A notarized zip on GitHub Releases, then a Homebrew cask in Pete's own tap | Notarization lets macOS open the app without a warning. The official Homebrew cask repo expects an app with some following, and a personal tap needs none. |
+| How people install it | A notarized zip on GitHub Releases. No Homebrew cask for now | Notarization lets macOS open the app without a warning. |
 | Updates | Sparkle, from 0.1.0 | Sparkle is the standard updater for Mac apps outside the App Store. It downloads, verifies and installs each update in place. Checking GitHub for a newer release and opening the download page would avoid the dependency, but people would install every update by hand. |
-| Version | 0.1.0 | The Info.plist says 0.1. Use three parts so tags and casks sort cleanly. |
+| Version | 0.1.0 | The Info.plist says 0.1. Use three parts so tags sort cleanly. |
 
 ## 2. Make the app safe and solid for strangers
 
@@ -24,7 +24,7 @@ The steps to take Barbarian from a personal tool to a public 0.1.0 release. The 
 1. Add `LICENSE`.
 2. Rewrite `README.md` for people who will download the app:
    - A screenshot of the menu bar and one of the Arrange panel.
-   - Install from the latest release or with `brew install --cask`.
+   - Install from the latest release.
    - What each permission does, and that Screen Recording is optional.
    - A privacy line: Barbarian's only network request is the update check against GitHub, and it collects nothing.
    - Build from source, as a short section at the end.
@@ -40,7 +40,7 @@ The steps to take Barbarian from a personal tool to a public 0.1.0 release. The 
 1. Build a universal binary, arm64 and x86_64, in release configuration. macOS 15 still runs on Intel Macs.
 2. Sign with the Developer ID Application certificate, with the hardened runtime and a secure timestamp. That certificate is already in Pete's keychain.
 3. Notarize with `xcrun notarytool submit --wait`, then staple the ticket.
-4. Zip the app with `ditto -c -k --keepParent`, and print its SHA-256 for the cask.
+4. Zip the app with `ditto -c -k --keepParent`, and print its SHA-256.
 5. Sign the zip and write `appcast.xml` with Sparkle's `generate_appcast`, with the version's `CHANGELOG.md` section as release notes.
 6. With `--publish`, tag the version and create the GitHub release with `gh release create`, attaching the zip and `appcast.xml`.
 
@@ -55,5 +55,4 @@ CI that runs `swift test` on each push is worth adding later. GitHub Actions cha
 
 1. Run the release script and check the zip on a clean VM: it opens without a Gatekeeper warning, asks for Accessibility, and hides items.
 2. Publish the GitHub release with notes written for users.
-3. Create the `petekp/homebrew-tap` repo with a `barbarian` cask that points at the release zip, marked `auto_updates true` since Sparkle updates the app.
-4. Announce wherever Pete chooses.
+3. Announce wherever Pete chooses.

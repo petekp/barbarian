@@ -69,7 +69,7 @@ printf '%s\n' "$notes" > "$out/feed/Barbarian-$version.md"
     --download-url-prefix "https://github.com/petekp/barbarian/releases/download/v$version/" \
     --link https://github.com/petekp/barbarian \
     "$out/feed"
-echo "SHA-256 for the Homebrew cask: $(shasum -a 256 "$zip" | cut -d ' ' -f 1)"
+echo "SHA-256: $(shasum -a 256 "$zip" | cut -d ' ' -f 1)"
 
 if $publish; then
     git -C "$repo" tag "v$version"

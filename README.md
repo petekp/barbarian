@@ -6,11 +6,7 @@ A free, open-source menu bar manager for macOS 15 and later. It hides the menu b
 
 ## Install
 
-Download the zip from the [latest release](https://github.com/petekp/barbarian/releases/latest), unzip it, and move Barbarian to Applications. Or install it with Homebrew:
-
-```sh
-brew install --cask petekp/tap/barbarian
-```
+Download the zip from the [latest release](https://github.com/petekp/barbarian/releases/latest), unzip it, and move Barbarian to Applications.
 
 Barbarian checks for updates and installs them itself.
 
