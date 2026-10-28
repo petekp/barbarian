@@ -98,15 +98,62 @@ private func layout(_ items: [MenuBarItem]) throws -> MenuBarLayout {
     #expect(bar.notDrawnItems == [notDrawn.windowID])
 }
 
-@Test func withEverySectionShownAnOffScreenItemItsAppDrawsDoesNotFit() throws {
-    let doesNotFit = item(1, x: 862, onScreen: false)
-    let drawn = item(2, x: 1100)
-    let notDrawn = item(3, x: 1140, onScreen: false)
-    let bar = try layout([doesNotFit, drawn, notDrawn, item(100, x: 1200)])
+@Test func itemsLeftOfAsManyAsFitCountedFromTheRightDoNotFit() throws {
+    let bar = try layout([
+        item(1, x: 862, onScreen: false),
+        item(2, x: 900),
+        item(3, x: 930),
+        item(4, x: 1140, onScreen: false),
+        item(100, x: 1200),
+    ])
+    let moved = bar.entries(inOrder: nil, moving: bar.entries[0], to: 2)
 
-    #expect(bar.doesNotFitWithEverySectionShown(doesNotFit))
-    #expect(!bar.doesNotFitWithEverySectionShown(drawn))
-    #expect(!bar.doesNotFitWithEverySectionShown(notDrawn))
+    #expect(bar.positionsThatDoNotFitWithEverySectionShown(inOrder: bar.entries) == [0])
+    #expect(moved.map(\.id) == [2, 3, 1, 4])
+    #expect(bar.positionsThatDoNotFitWithEverySectionShown(inOrder: moved) == [0])
+}
+
+@Test func anItemThatHasNotMovedSinceBeforeTheRevealKeepsItsPlace() throws {
+    let collapsed = try layout([
+        item(102, x: -9_000, width: 14, owner: "Barbarian"),
+        item(1, x: -4_100, onScreen: false),
+        item(2, x: -4_060, onScreen: false),
+        item(101, x: -3_900, width: 14, owner: "Barbarian"),
+        item(3, x: 1_016, onScreen: false),
+        item(4, x: 1_100),
+        item(100, x: 1_200),
+    ])
+    let revealed = try layout([
+        item(1, x: -4_100, onScreen: false),
+        item(102, x: 870, width: 14, owner: "Barbarian"),
+        item(2, x: 900),
+        item(3, x: 1_016, onScreen: false),
+        item(101, x: 1_060, width: 14, owner: "Barbarian"),
+        item(4, x: 1_100),
+        item(100, x: 1_200),
+    ])
+
+    let kept = revealed.keepingStaleItems(asIn: collapsed, revealedFrom: .showingShownOnly)
+
+    #expect(kept.entries.map(\.id) == [102, 1, 2, 101, 3, 4])
+    #expect(kept.notDrawnItems == [1, 3])
+    #expect(kept.section(of: 1) == .hidden)
+    #expect(kept.section(of: 3) == .shown)
+}
+
+@Test func anItemThatDoesNotFitIsNotStaleWhenNothingWasCollapsed() throws {
+    let revealed = try layout([
+        item(1, x: 820, onScreen: false),
+        item(102, x: 850, width: 14, owner: "Barbarian"),
+        item(101, x: 864, width: 14, owner: "Barbarian"),
+        item(2, x: 880),
+        item(100, x: 1_200),
+    ])
+
+    let kept = revealed.keepingStaleItems(asIn: revealed, revealedFrom: .showingAll)
+
+    #expect(kept.notDrawnItems.isEmpty)
+    #expect(kept.positionsThatDoNotFitWithEverySectionShown(inOrder: kept.entries) == [0])
 }
 
 @Test func movingToAnIndexAimsAtTheReliableEntryOnItsRight() throws {

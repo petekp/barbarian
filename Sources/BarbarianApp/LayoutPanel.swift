@@ -16,6 +16,8 @@ final class LayoutPanel: NSObject, NSWindowDelegate {
     private var panel: NSPanel?
     private var dimmingWindows: [NSWindow] = []
     private var screen: NSScreen?
+    /// True while the panel waits for the revealed menu bar to settle.
+    private var isOpening = false
 
     /// Space between the panel and the screen's right edge and the menu bar.
     private static let margin: CGFloat = 8
@@ -32,11 +34,21 @@ final class LayoutPanel: NSObject, NSWindowDelegate {
     var isOpen: Bool { panel?.isVisible ?? false }
 
     func show() {
-        guard let screen = controller.iconScreen ?? NSScreen.main else { return }
+        guard !isOpen, !isOpening, let screen = controller.iconScreen ?? NSScreen.main else { return }
         self.screen = screen
+        isOpening = true
+        model.takeBaseline()
         controller.isPinnedOpen = true
-        model.startRefreshing()
+        Task {
+            await model.loadSettledLayout()
+            guard isOpening else { return }
+            isOpening = false
+            present(on: screen)
+            model.startRefreshing()
+        }
+    }
 
+    private func present(on screen: NSScreen) {
         let panel = self.panel ?? makePanel()
         self.panel = panel
         let maximumCanvasWidth = screen.frame.width - 2 * Self.margin - 36
@@ -53,7 +65,8 @@ final class LayoutPanel: NSObject, NSWindowDelegate {
     }
 
     func close() {
-        guard isOpen else { return }
+        guard isOpen || isOpening else { return }
+        isOpening = false
         model.stopRefreshing()
         controller.isPinnedOpen = false
         let windows = [panel].compactMap { $0 } + dimmingWindows

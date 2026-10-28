@@ -38,6 +38,8 @@ struct ArrangeContent {
     /// items, so the items that do not fit sit left of one point. Nil when
     /// everything fits.
     let overflow: (endX: CGFloat, itemCount: Int)?
+    /// The items that would not fit in this order.
+    let itemsThatDoNotFit: Set<WindowID>
     /// Whether the menu bar's room ends at a notch, as on a MacBook's
     /// built-in display, rather than at the front app's menus.
     let isCutOffByNotch: Bool
@@ -56,8 +58,9 @@ struct ArrangeContent {
         let strip = Self.strip(for: entries, widths: widths)
         self.entries = entries
         self.strip = strip
-        let itemsThatDoNotFit = entries.indices.filter { entries[$0].item.map(layout.doesNotFitWithEverySectionShown) ?? false }
-        overflow = itemsThatDoNotFit.last.map { (strip.gapX(after: $0), itemsThatDoNotFit.count) }
+        let positionsThatDoNotFit = layout.positionsThatDoNotFitWithEverySectionShown(inOrder: entries)
+        itemsThatDoNotFit = Set(positionsThatDoNotFit.map { entries[$0].id })
+        overflow = positionsThatDoNotFit.last.map { (strip.gapX(after: $0), positionsThatDoNotFit.count) }
     }
 
     /// A divider's role where the window shows it: the left one plays Always
@@ -99,15 +102,25 @@ final class LayoutEditorModel {
     /// The entry last dropped, kept above its neighbors while it springs
     /// into place.
     private(set) var landingEntry: WindowID?
+    /// The canvas width from the start of a drag until its move settles, so
+    /// the panel, which is pinned by its right edge, does not resize and
+    /// shift the strip under the pointer.
+    private(set) var frozenCanvasWidth: CGFloat?
 
     /// The order shown after a drop, kept until the menu bar reports it, so
     /// the dropped entry does not jump back while the move is under way.
     private var pendingOrder: [WindowID]?
     private var isCutOffByNotch = false
+    /// The layout read before the panel revealed every section. Items their
+    /// app is not drawing keep the place they had in it.
+    @ObservationIgnored private var baseline: MenuBarLayout?
+    @ObservationIgnored private var baselineState = HidingState.showingShownOnly
     @ObservationIgnored private unowned let controller: AppController
     @ObservationIgnored private var refreshTimer: Timer?
 
     private static let pendingOrderTimeout: Duration = .seconds(2)
+    private static let settleInterval: Duration = .milliseconds(100)
+    private static let maximumSettleReads = 30
 
     init(controller: AppController) {
         self.controller = controller
@@ -119,8 +132,35 @@ final class LayoutEditorModel {
 
     var canDrag: Bool { accessibilityGranted && !isMoving && pendingOrder == nil }
 
+    /// Reads the layout the menu bar shows before the panel reveals every
+    /// section. Call before revealing.
+    func takeBaseline() {
+        baseline = controller.currentLayout()
+        baselineState = controller.state
+    }
+
+    /// Waits until the reveal has changed the menu bar and two reads in a
+    /// row then agree, then shows that layout without animating it. Two
+    /// reads can agree before the window server applies the reveal, so
+    /// agreement counts only once the bar differs from the baseline, unless
+    /// every section was already shown.
+    func loadSettledLayout() async {
+        var hasChanged = baselineState == .showingAll
+        var previous = readLayout()
+        for _ in 0..<Self.maximumSettleReads {
+            try? await Task.sleep(for: Self.settleInterval)
+            let raw = controller.currentLayout()
+            hasChanged = hasChanged || raw != baseline
+            let current = readLayout(raw)
+            if hasChanged, current == previous { break }
+            previous = current
+        }
+        accessibilityGranted = AccessibilityPermission.isGranted
+        isCutOffByNotch = controller.iconScreen?.auxiliaryTopRightArea != nil
+        apply(previous)
+    }
+
     func startRefreshing() {
-        refresh()
         refreshTimer?.invalidate()
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.refresh() }
@@ -132,24 +172,44 @@ final class LayoutEditorModel {
         refreshTimer = nil
     }
 
+    /// Shows the menu bar's current layout, animating any change. While a
+    /// dropped order is pending, only a layout in that order is shown.
     func refresh() {
         accessibilityGranted = AccessibilityPermission.isGranted
         isCutOffByNotch = controller.iconScreen?.auxiliaryTopRightArea != nil
         guard drag == nil, !isMoving else { return }
-        let latest = controller.currentLayout()
-        if let pendingOrder, let latest, latest.hasOrder(pendingOrder) {
-            self.pendingOrder = nil
+        let latest = readLayout()
+        if let pendingOrder {
+            guard let latest, latest.hasOrder(pendingOrder) else { return }
+            withAnimation(ArrangeCanvas.spring) {
+                self.pendingOrder = nil
+                frozenCanvasWidth = nil
+                apply(latest)
+            }
+            return
         }
         guard latest != layout else { return }
+        withAnimation(ArrangeCanvas.spring) { apply(latest) }
+    }
+
+    private func readLayout(_ latest: MenuBarLayout? = nil) -> MenuBarLayout? {
+        guard let latest = latest ?? controller.currentLayout() else { return nil }
+        return baseline.map { latest.keepingStaleItems(asIn: $0, revealedFrom: baselineState) } ?? latest
+    }
+
+    private func apply(_ latest: MenuBarLayout?) {
         layout = latest
         presentation = ItemPresentation(layout: latest, images: controller.itemImages)
         widths = latest.map { ArrangeContent.widths(of: $0, presentation: presentation) } ?? [:]
     }
 
+    /// The lifted entry follows the pointer without animation. The other
+    /// entries spring to their new places when the drop target changes.
     func dragChanged(_ entry: MenuBarLayout.Entry, pointerX: CGFloat, startX: CGFloat) {
         guard canDrag else { return }
         if drag == nil {
             guard let content, let index = content.entries.firstIndex(of: entry) else { return }
+            frozenCanvasWidth = ArrangeCanvas.width(of: content)
             drag = EntryDrag(
                 entry: entry,
                 pointerX: pointerX,
@@ -164,35 +224,41 @@ final class LayoutEditorModel {
         if target != drag.targetIndex {
             drag.targetIndex = target
             NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+            withAnimation(ArrangeCanvas.spring) { self.drag = drag }
+        } else {
+            self.drag = drag
         }
-        self.drag = drag
     }
 
     func dragEnded() {
         guard let drag, let content else { return }
         let droppedOrder = content.entries.map(\.id)
-        self.drag = nil
-        land(drag.entry.id)
-        guard canDrag, let destination = content.layout.destination(moving: drag.entry.id, to: drag.targetIndex) else { return }
+        let destination = canDrag ? content.layout.destination(moving: drag.entry.id, to: drag.targetIndex) : nil
+        withAnimation(ArrangeCanvas.spring) {
+            self.drag = nil
+            landingEntry = drag.entry.id
+            if destination != nil { pendingOrder = droppedOrder } else { frozenCanvasWidth = nil }
+        }
+        clearLanding(drag.entry.id)
+        guard let destination else { return }
         let ownerPID = drag.entry.item?.ownerPID ?? ProcessInfo.processInfo.processIdentifier
         let name = drag.entry.item.map(presentation.name(of:)) ?? "the divider"
-        pendingOrder = droppedOrder
         isMoving = true
         Task {
             do {
                 try await MenuBarItemEvents.move(drag.entry.id, ownerPID: ownerPID, to: destination)
                 errorMessage = nil
+                isMoving = false
+                await settle()
             } catch {
-                pendingOrder = nil
                 errorMessage = "Barbarian couldn't move \(name). Try again."
+                isMoving = false
+                showCurrentLayout()
             }
-            isMoving = false
-            await settle()
         }
     }
 
-    private func land(_ entry: WindowID) {
-        landingEntry = entry
+    private func clearLanding(_ entry: WindowID) {
         Task {
             try? await Task.sleep(for: .milliseconds(450))
             if landingEntry == entry { landingEntry = nil }
@@ -206,10 +272,19 @@ final class LayoutEditorModel {
         let deadline = clock.now + Self.pendingOrderTimeout
         while pendingOrder != nil, clock.now < deadline {
             refresh()
-            try? await Task.sleep(for: .milliseconds(100))
+            try? await Task.sleep(for: Self.settleInterval)
         }
-        pendingOrder = nil
-        refresh()
+        if pendingOrder != nil { showCurrentLayout() }
+    }
+
+    /// Drops the pending order and shows what the menu bar reports.
+    private func showCurrentLayout() {
+        let latest = readLayout()
+        withAnimation(ArrangeCanvas.spring) {
+            pendingOrder = nil
+            frozenCanvasWidth = nil
+            apply(latest)
+        }
     }
 }
 
@@ -254,7 +329,7 @@ struct LayoutView: View {
                     )
                     .padding(.vertical, 4)
                 }
-                .frame(width: min(ArrangeCanvas.width(of: content), maximumCanvasWidth))
+                .frame(width: min(model.frozenCanvasWidth ?? ArrangeCanvas.width(of: content), maximumCanvasWidth))
             }
             if let errorMessage = model.errorMessage {
                 Text(errorMessage).foregroundStyle(.red).font(.callout)
@@ -334,10 +409,7 @@ struct ArrangeCanvas: View {
                 )
             }
             if let overflow = content.overflow {
-                Group {
-                    overflowMarks(endX: overflow.endX, itemCount: overflow.itemCount, sectionSpans: strip.sectionSpans, sectionHeight: sectionHeight)
-                }
-                .animation(Self.spring, value: overflow.endX)
+                overflowMarks(endX: overflow.endX, itemCount: overflow.itemCount, sectionSpans: strip.sectionSpans, sectionHeight: sectionHeight)
             }
             ForEach(Array(content.entries.enumerated()), id: \.element.id) { index, entry in
                 entryView(entry, frame: strip.frames[index].offsetBy(dx: 0, dy: stripY))
@@ -359,7 +431,7 @@ struct ArrangeCanvas: View {
         }
         .frame(
             width: trailingX + Self.iconWidth + systemItemsWidth,
-            height: Self.headerHeight + sectionHeight + (content.overflow == nil ? 0 : Self.overflowLabelHeight),
+            height: Self.headerHeight + sectionHeight + Self.overflowLabelHeight,
             alignment: .topLeading
         )
         .coordinateSpace(.named(Self.coordinateSpace))
@@ -410,14 +482,16 @@ struct ArrangeCanvas: View {
             case .divider:
                 DividerChip(role: content.dividerRole(of: entry), isLifted: isLifted)
             case .item(let item):
-                let status: ItemChip.Status = content.layout.isNotDrawn(item) ? .notDrawn : (item.isOnScreen ? .shown : .doesNotFit)
+                let status: ItemChip.Status = content.layout.isNotDrawn(item) ? .notDrawn : (content.itemsThatDoNotFit.contains(item.windowID) ? .doesNotFit : .shown)
                 itemChip(item, status: status, isLifted: isLifted)
             }
         }
         .frame(width: frame.width, height: frame.height)
         .pointerStyle(isDraggable ? (isLifted ? .grabActive : .grabIdle) : nil)
         .position(center)
-        .animation(isLifted ? nil : Self.spring, value: center)
+        .transaction { transaction in
+            if isLifted { transaction.animation = nil }
+        }
         .zIndex(isLifted || landingEntry == entry.id ? 1 : 0)
         .gesture(
             DragGesture(minimumDistance: 3, coordinateSpace: .named(Self.coordinateSpace))
@@ -480,18 +554,18 @@ private struct SectionBackground: View {
     var body: some View {
         SectionHeading(title: section.title, caption: section.caption, isDimmed: false)
             .offset(x: frame.minX + 4)
-        .animation(ArrangeCanvas.spring, value: frame.minX)
 
         Self.shape
-            .fill(section.tint.opacity(isDropTarget ? 0.2 : 0.1))
+            .fill(section.tint.opacity(0.1))
             .overlay {
-                Self.shape
-                    .strokeBorder(isDropTarget ? Color.accentColor.opacity(0.55) : .clear, lineWidth: 1.5)
+                ZStack {
+                    Self.shape.fill(section.tint.opacity(0.1))
+                    Self.shape.strokeBorder(Color.accentColor.opacity(0.55), lineWidth: 1.5)
+                }
+                .animation(.easeOut(duration: 0.15)) { $0.opacity(isDropTarget ? 1 : 0) }
             }
             .frame(width: frame.width, height: frame.height)
             .offset(x: frame.minX, y: frame.minY)
-            .animation(ArrangeCanvas.spring, value: frame)
-            .animation(.easeOut(duration: 0.15), value: isDropTarget)
     }
 }
 

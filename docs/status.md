@@ -25,6 +25,8 @@ These need Accessibility permission or a real pointer, which no check has had.
 
 - Moving items and dividers by dropping in the layout window.
 - Dragging in the layout window with a real pointer: the spring animations, the haptic tick and the grab pointer.
+- The Arrange panel with a real pointer: opening without items sliding, from both the collapsed state and after Option-click; the frozen width during a drag; the hold after a drop until the menu bar matches; Escape, the close button and a click on the dimmed area. Core's stale-item and cutoff rules have tests, and the cutoff was checked with `--render-arrange --lift` on 2026-10-28.
+- The Clock's icon and the "Cut off by the notch" label in the running app. Checked only with `--render-arrange`.
 - Revealing Hidden by resting the pointer on the empty part of the bar.
 - Rehiding on a click outside the menu bar.
 - The hot keys Control-Option-Command-B and Control-Option-Command-M.
@@ -41,3 +43,5 @@ These need Accessibility permission or a real pointer, which no check has had.
 - With two displays whose menu bars have the same height, copies of items their app is not drawing show up as extra entries. See `MenuBarMembership`.
 - A Control Center item that is not drawn, such as Focus with no Focus on, has no Accessibility element. Barbarian names it "Control Center".
 - An Accessibility name can include the item's status, as Wi-Fi's does, so it changes while you watch.
+- In the Arrange panel, an item its app is not drawing stays beside the entry it followed when the panel opened. Moving that neighbor carries it along. An item that only appeared after the panel opened has no neighbor and goes to the far left.
+- An item in Shown that does not fit keeps the same frame when sections are revealed, so it is told apart only by the cutoff count, not by its frame.
