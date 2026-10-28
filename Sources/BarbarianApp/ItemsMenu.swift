@@ -11,6 +11,10 @@ enum ItemsMenu {
         let target = MenuTarget.shared
         target.controller = controller
 
+        addCommand("Arrange Menu Bar…", #selector(MenuTarget.arrange), to: menu, target: target)
+        addCommand("Show Hidden Items", #selector(MenuTarget.showHidden), to: menu, target: target, checked: controller.state == .showingHidden)
+        addCommand("Show All Items", #selector(MenuTarget.showAll), to: menu, target: target, checked: controller.state == .showingAll)
+
         if let layout {
             let presentation = ItemPresentation(layout: layout, images: controller.itemImages)
             var sections: [(title: String, items: [MenuBarItem])] = [MenuBarSection.shown, .hidden, .alwaysHidden].map { section in
@@ -30,10 +34,6 @@ enum ItemsMenu {
             menu.addItem(grant)
         }
 
-        menu.addItem(.separator())
-        addCommand("Show Hidden Items", #selector(MenuTarget.showHidden), to: menu, target: target, checked: controller.state == .showingHidden)
-        addCommand("Show All Items", #selector(MenuTarget.showAll), to: menu, target: target, checked: controller.state == .showingAll)
-        addCommand("Arrange Menu Bar…", #selector(MenuTarget.arrange), to: menu, target: target)
         menu.addItem(.separator())
         addCommand("Settings…", #selector(MenuTarget.openSettings), to: menu, target: target, keyEquivalent: ",")
         addCommand("About Barbarian", #selector(MenuTarget.showAbout), to: menu, target: target)
