@@ -1,6 +1,6 @@
 # Barbarian
 
-A free, open-source menu bar manager for macOS 15 and 26. It hides the menu bar items you rarely use, keeps every item one click away, and lets you rearrange them by dragging.
+A free, open-source menu bar manager for macOS 15 and later. It hides the menu bar items you rarely use, keeps every item one click away, and lets you rearrange them by dragging.
 
 <img src="docs/images/arrange-panel.png" width="1024" alt="The Arrange Menu Bar panel below the menu bar, showing items in the Always Hidden, Hidden and Shown sections, with the rest of the screen dimmed">
 
@@ -13,6 +13,8 @@ brew install --cask petekp/tap/barbarian
 ```
 
 Barbarian checks for updates and installs them itself.
+
+Barbarian has been tested on macOS 15. It is built for macOS 26 too, but nobody has tested it there yet. Please [open an issue](https://github.com/petekp/barbarian/issues) if something breaks.
 
 ## Permissions
 

@@ -11,3 +11,5 @@ The first public release.
 - macOS's own items, such as Wi-Fi and the clock, show symbols that look like them.
 - Optionally, each item shows its own icon. This needs Screen Recording.
 - Barbarian opens at login and updates itself.
+
+Tested on macOS 15. macOS 26 is supported but not yet tested.
