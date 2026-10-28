@@ -39,7 +39,9 @@ final class AppController: NSObject, NSApplicationDelegate {
         Preferences.shared.onShortcutsChange = { [weak self] in self?.registerHotKeys() }
         LaunchAtLogin.enableOnFirstLaunch()
         settingsWindow.showOnFirstLaunch()
+        #if DEBUG
         commandObserver = CommandChannel.listen { [weak self] in self?.perform($0) }
+        #endif
     }
 
     private func perform(_ command: Command) {

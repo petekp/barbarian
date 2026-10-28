@@ -1,6 +1,6 @@
 # Feature scope
 
-Barbarian is a personal macOS menu bar manager. It hides menu bar items until you ask for them. Its feature set is a cut-down version of Bartender 7.
+Barbarian is a macOS menu bar manager. It hides menu bar items until you ask for them. Its feature set is a cut-down version of Bartender 7.
 
 ## Platform
 
@@ -24,7 +24,7 @@ A **menu bar item** is an icon that an app places in the right side of the menu 
 | Reveal by click, hotkey and hover | Each is cheap. Hover is the most common gesture. |
 | Auto-rehide after a delay or on a click elsewhere | Without it, every reveal has to be undone by hand. |
 | A menu that lists every item, including items that do not fit, and opens the one you pick | On a display with a notch, items that do not fit are dropped and cannot be clicked at all. Typing an item's name selects it, so the menu also covers keyboard access. Opening an item that is off screen needs Accessibility permission. |
-| An Arrange Menu Bar window where you drag items between sections | Command-dragging in the menu bar works only for items that are on screen, which on a full bar excludes the ones you most need to move. It needs Accessibility permission. |
+| An Arrange Menu Bar panel where you drag items between sections | Command-dragging in the menu bar works only for items that are on screen, which on a full bar excludes the ones you most need to move. It needs Accessibility permission. |
 
 **Later**
 

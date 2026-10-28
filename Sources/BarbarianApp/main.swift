@@ -6,6 +6,10 @@ let arguments = CommandLine.arguments
 // commands below that exit without running it.
 let app = NSApplication.shared
 
+// Development commands, left out of release builds. `--command` drives the
+// running app, which holds Accessibility permission, and its channel is open
+// to every process on the Mac.
+#if DEBUG
 if arguments.contains("--print-items") {
     ItemReport.print()
     exit(0)
@@ -31,6 +35,7 @@ if let flag = arguments.firstIndex(of: "--command") {
     CommandChannel.send(command)
     exit(0)
 }
+#endif
 
 let controller = AppController()
 app.delegate = controller
