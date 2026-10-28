@@ -31,6 +31,15 @@ mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources"
 cp "$bin_path/Barbarian" "$bundle/Contents/MacOS/Barbarian"
 cp "$repo/Resources/Info.plist" "$bundle/Contents/Info.plist"
 cp "$repo/Resources/AppIcon.icns" "$bundle/Contents/Resources/AppIcon.icns"
+
+# Barbarian is not sandboxed, so Sparkle runs without its XPC services.
+sparkle="$bundle/Contents/Frameworks/Sparkle.framework"
+mkdir -p "$bundle/Contents/Frameworks"
+ditto "$bin_path/Sparkle.framework" "$sparkle"
+rm -rf "$sparkle/XPCServices" "$sparkle/Versions/B/XPCServices"
+codesign --force --sign "$identity" "$sparkle/Versions/B/Autoupdate"
+codesign --force --sign "$identity" "$sparkle/Versions/B/Updater.app"
+codesign --force --sign "$identity" "$sparkle"
 codesign --force --sign "$identity" "$bundle"
 
 installed="$HOME/Applications/Barbarian.app"

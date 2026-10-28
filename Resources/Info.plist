@@ -20,5 +20,11 @@
 	<string>15.0</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://github.com/petekp/barbarian/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>3jaF8LRjWZ3OyTOPLk90PVvUljx15BJ3plXmFpT07sA=</string>
 </dict>
 </plist>

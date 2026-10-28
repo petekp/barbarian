@@ -45,7 +45,9 @@ Animation is explicit. Views carry no `.animation(_:value:)` for position; `Layo
 
 Items and both dividers can be dragged. Dragging a divider moves Barbarian's own status item, which changes which items are in which section. On drop, `MenuBarLayout.destination(moving:to:)` picks the move. It aims past items their app is not drawing, whose frames are stale. The panel keeps showing the dropped order until the menu bar reports it, for up to 2 seconds, so the entry does not jump back while the move runs. Items their app is not drawing show a dotted outline and "Not showing", and cannot be dragged. Items with no place in the menu bar are left out; the items menu still lists them. While the panel is open every section is revealed and stays revealed.
 
-**Commands.** `Barbarian --command <name>` posts a distributed notification that the running app handles. Scripts and agents use it to drive the app without clicking.
+**Commands.** `Barbarian --command <name>` posts a distributed notification that the running app handles. Scripts and agents use it to drive the app without clicking. Any process can post a distributed notification, and the app holds Accessibility permission, so the commands, like the other development flags, exist only in debug builds.
+
+**Updates.** Release builds check for updates with Sparkle (`SPUStandardUpdaterController` in `AppController`). The feed, `SUFeedURL` in `Info.plist`, is the `appcast.xml` attached to the latest GitHub release. Sparkle installs only updates signed with the private half of `SUPublicEDKey`, which lives in the release maker's keychain under the account `barbarian`. Debug builds never start the updater, so a release cannot replace a development build. Barbarian is not sandboxed, so `scripts/build-app.sh` leaves out Sparkle's XPC services.
 
 ## macOS behavior the code relies on
 

@@ -1,6 +1,7 @@
 import AppKit
 import BarbarianCore
 import BarbarianSystem
+import Sparkle
 
 /// Owns Barbarian's status items and decides what the menu bar shows.
 final class AppController: NSObject, NSApplicationDelegate {
@@ -18,6 +19,15 @@ final class AppController: NSObject, NSApplicationDelegate {
     private lazy var settingsWindow = SettingsWindowController(controller: self)
     private let statusMessage = StatusMessage()
     let itemImages = ItemImageCache { Preferences.shared.showsItemImages }
+    let updates = SPUStandardUpdaterController(startingUpdater: AppController.checksForUpdates, updaterDelegate: nil, userDriverDelegate: nil)
+
+    /// Debug builds never check for updates, so a release cannot replace a
+    /// development build.
+    #if DEBUG
+    private static let checksForUpdates = false
+    #else
+    private static let checksForUpdates = true
+    #endif
 
     /// Keeps every section on screen while the Arrange panel is open.
     var isPinnedOpen = false {

@@ -36,6 +36,7 @@ These need Accessibility permission or a real pointer, which no check has had.
 - The Settings window inside the running app, its first-launch opening, and recording a shortcut. Its drawing was checked with `--render-settings`.
 - Launch at login, the icon's highlight while revealed, and the error popover.
 - Everything on macOS 26.
+- Sparkle updates: the update check, the Check for Updates… item and installing an update. They need a published release and a release build.
 
 ## Known gaps
 

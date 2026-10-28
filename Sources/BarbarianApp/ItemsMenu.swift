@@ -1,6 +1,7 @@
 import AppKit
 import BarbarianCore
 import BarbarianSystem
+import Sparkle
 
 /// The menu behind Barbarian's icon: every managed item by section, so an
 /// item that is hidden or does not fit is still one click or keystroke away.
@@ -37,6 +38,7 @@ enum ItemsMenu {
         menu.addItem(.separator())
         addCommand("Settings…", #selector(MenuTarget.openSettings), to: menu, target: target, keyEquivalent: ",")
         addCommand("About Barbarian", #selector(MenuTarget.showAbout), to: menu, target: target)
+        addCommand("Check for Updates…", #selector(SPUStandardUpdaterController.checkForUpdates(_:)), to: menu, target: controller.updates)
         addCommand("Quit Barbarian", #selector(NSApplication.terminate(_:)), to: menu, target: NSApp, keyEquivalent: "q")
         return menu
     }

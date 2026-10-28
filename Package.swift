@@ -7,6 +7,9 @@ let package = Package(
     products: [
         .executable(name: "Barbarian", targets: ["BarbarianApp"]),
     ],
+    dependencies: [
+        .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.10.0"),
+    ],
     targets: [
         .target(name: "BarbarianCore"),
         .target(
@@ -16,8 +19,9 @@ let package = Package(
         ),
         .executableTarget(
             name: "BarbarianApp",
-            dependencies: ["BarbarianCore", "BarbarianSystem"],
-            swiftSettings: [.defaultIsolation(MainActor.self)]
+            dependencies: ["BarbarianCore", "BarbarianSystem", .product(name: "Sparkle", package: "Sparkle")],
+            swiftSettings: [.defaultIsolation(MainActor.self)],
+            linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]
         ),
         .testTarget(
             name: "BarbarianCoreTests",

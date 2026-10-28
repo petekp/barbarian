@@ -2,6 +2,7 @@ import AppKit
 import BarbarianCore
 import BarbarianSystem
 import Carbon.HIToolbox
+import Sparkle
 import SwiftUI
 
 /// Barbarian's Settings window. It opens by itself the first time Barbarian
@@ -26,6 +27,7 @@ final class SettingsWindowController {
         let window = self.window ?? NSWindow.hosting(
             SettingsView(
                 preferences: .shared,
+                updater: controller.updates.updater,
                 onShortcutRecording: { [weak controller] isRecording in
                     if isRecording { controller?.suspendHotKeys() } else { controller?.registerHotKeys() }
                 }
@@ -41,6 +43,7 @@ final class SettingsWindowController {
 
 private struct SettingsView: View {
     @Bindable var preferences: Preferences
+    let updater: SPUUpdater
     let onShortcutRecording: (Bool) -> Void
 
     /// Read again whenever Barbarian becomes active, as it does when someone
@@ -48,6 +51,14 @@ private struct SettingsView: View {
     @State private var opensAtLogin = LaunchAtLogin.isEnabled
     @State private var accessibilityGranted = AccessibilityPermission.isGranted
     @State private var screenRecordingGranted = ScreenRecordingPermission.isGranted
+    @State private var checksForUpdates: Bool
+
+    init(preferences: Preferences, updater: SPUUpdater, onShortcutRecording: @escaping (Bool) -> Void) {
+        self.preferences = preferences
+        self.updater = updater
+        self.onShortcutRecording = onShortcutRecording
+        _checksForUpdates = State(initialValue: updater.automaticallyChecksForUpdates)
+    }
 
     var body: some View {
         Form {
@@ -82,6 +93,13 @@ private struct SettingsView: View {
                     Text("Show items' own icons")
                     Text("Needs Screen Recording, which macOS asks you to confirm again from time to time. When off, items show their app's icon.")
                 }
+                Toggle("Check for updates automatically", isOn: Binding(
+                    get: { checksForUpdates },
+                    set: { isOn in
+                        updater.automaticallyChecksForUpdates = isOn
+                        checksForUpdates = isOn
+                    }
+                ))
             }
 
             Section("Shortcuts") {
@@ -215,7 +233,11 @@ enum SettingsSnapshot {
         guard let output = RenderCommand.outputURL(after: "--render-settings", in: arguments, usage: "<file.png>") else {
             return 1
         }
-        let view = NSHostingView(rootView: SettingsView(preferences: .shared, onShortcutRecording: { _ in }))
+        let view = NSHostingView(rootView: SettingsView(
+            preferences: .shared,
+            updater: SPUStandardUpdaterController(startingUpdater: false, updaterDelegate: nil, userDriverDelegate: nil).updater,
+            onShortcutRecording: { _ in }
+        ))
         view.frame = NSRect(origin: .zero, size: view.fittingSize)
         view.layoutSubtreeIfNeeded()
         guard let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return RenderCommand.fail("Rendering failed.") }
