@@ -75,6 +75,13 @@ public enum SystemItem: CaseIterable, Sendable {
         }
     }
 
+    /// Whether the item draws text, as the clock draws the time. Text is
+    /// unreadable at icon size, so the symbol stands in even when the item
+    /// has been captured.
+    public var drawsText: Bool {
+        self == .clock
+    }
+
     /// The part after `com.apple.menuextra.`, for the items seen reporting
     /// one.
     private var menuExtraIdentifier: String? {

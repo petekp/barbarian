@@ -14,7 +14,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     private var hotKeys: [GlobalHotKey] = []
     private var commandObserver: NSObjectProtocol?
     private lazy var itemAccess = ItemAccess(controller: self)
-    private lazy var layoutWindow = LayoutWindowController(controller: self)
+    private lazy var layoutWindow = LayoutPanel(controller: self)
     private lazy var settingsWindow = SettingsWindowController(controller: self)
     private let statusMessage = StatusMessage()
     let itemImages = ItemImageCache { Preferences.shared.showsItemImages }
@@ -136,6 +136,11 @@ final class AppController: NSObject, NSApplicationDelegate {
 
     func openSettings() {
         settingsWindow.show()
+    }
+
+    /// The screen whose menu bar holds Barbarian's icon.
+    var iconScreen: NSScreen? {
+        controlItems.icon.button?.window?.screen
     }
 
     func openLayoutWindow() {

@@ -3,48 +3,6 @@ import BarbarianCore
 import BarbarianSystem
 import SwiftUI
 
-/// The Arrange Menu Bar window: the managed part of the menu bar as one
-/// strip, left to right, with both dividers. Dragging an item or a divider
-/// opens a gap where it will land, and dropping it moves the real one there.
-final class LayoutWindowController: NSObject, NSWindowDelegate {
-    private unowned let controller: AppController
-    private let model: LayoutEditorModel
-    private var window: NSWindow?
-
-    init(controller: AppController) {
-        self.controller = controller
-        self.model = LayoutEditorModel(controller: controller)
-    }
-
-    func show() {
-        let window = self.window ?? makeWindow()
-        self.window = window
-        controller.isPinnedOpen = true
-        model.startRefreshing()
-        window.bringForward()
-    }
-
-    func close() {
-        window?.close()
-    }
-
-    func windowWillClose(_ notification: Notification) {
-        model.stopRefreshing()
-        controller.isPinnedOpen = false
-    }
-
-    private func makeWindow() -> NSWindow {
-        let window = NSWindow.hosting(
-            LayoutView(model: model),
-            title: "Arrange Menu Bar",
-            size: NSSize(width: 1100, height: 250),
-            styleMask: [.titled, .closable, .resizable]
-        )
-        window.delegate = self
-        return window
-    }
-}
-
 /// An item or divider being dragged in the Arrange window. Only x matters:
 /// the strip is one row.
 struct EntryDrag: Equatable {
@@ -80,14 +38,18 @@ struct ArrangeContent {
     /// items, so the items that do not fit sit left of one point. Nil when
     /// everything fits.
     let overflow: (endX: CGFloat, itemCount: Int)?
+    /// Whether the menu bar's room ends at a notch, as on a MacBook's
+    /// built-in display, rather than at the front app's menus.
+    let isCutOffByNotch: Bool
 
     static let metrics = ArrangeStrip.Metrics(height: 64, spacing: 2, sectionPadding: 6, minimumSectionWidth: 90)
     static let nameFont = NSFont.systemFont(ofSize: 11)
     private static let dividerWidth: CGFloat = 26
     private static let minimumItemWidth: CGFloat = 56
 
-    init(layout: MenuBarLayout, pendingOrder: [WindowID]?, drag: EntryDrag?, presentation: ItemPresentation, widths: [WindowID: CGFloat]) {
+    init(layout: MenuBarLayout, pendingOrder: [WindowID]?, drag: EntryDrag?, presentation: ItemPresentation, widths: [WindowID: CGFloat], isCutOffByNotch: Bool) {
         self.layout = layout
+        self.isCutOffByNotch = isCutOffByNotch
         self.presentation = presentation
         self.widths = widths
         let entries = layout.entries(inOrder: pendingOrder, moving: drag?.entry, to: drag?.targetIndex ?? 0)
@@ -141,6 +103,7 @@ final class LayoutEditorModel {
     /// The order shown after a drop, kept until the menu bar reports it, so
     /// the dropped entry does not jump back while the move is under way.
     private var pendingOrder: [WindowID]?
+    private var isCutOffByNotch = false
     @ObservationIgnored private unowned let controller: AppController
     @ObservationIgnored private var refreshTimer: Timer?
 
@@ -151,7 +114,7 @@ final class LayoutEditorModel {
     }
 
     var content: ArrangeContent? {
-        layout.map { ArrangeContent(layout: $0, pendingOrder: pendingOrder, drag: drag, presentation: presentation, widths: widths) }
+        layout.map { ArrangeContent(layout: $0, pendingOrder: pendingOrder, drag: drag, presentation: presentation, widths: widths, isCutOffByNotch: isCutOffByNotch) }
     }
 
     var canDrag: Bool { accessibilityGranted && !isMoving && pendingOrder == nil }
@@ -171,6 +134,7 @@ final class LayoutEditorModel {
 
     func refresh() {
         accessibilityGranted = AccessibilityPermission.isGranted
+        isCutOffByNotch = controller.iconScreen?.auxiliaryTopRightArea != nil
         guard drag == nil, !isMoving else { return }
         let latest = controller.currentLayout()
         if let pendingOrder, let latest, latest.hasOrder(pendingOrder) {
@@ -249,16 +213,37 @@ final class LayoutEditorModel {
     }
 }
 
+/// The Arrange panel's content. It sizes itself to the strip, up to
+/// `maximumCanvasWidth`, past which the strip scrolls.
 struct LayoutView: View {
     let model: LayoutEditorModel
+    let maximumCanvasWidth: CGFloat
+    let onClose: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
+            ZStack {
+                Text("Drag items or the dividers to rearrange. You can also hold ⌘ and drag icons in the menu bar itself.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 28)
+                Button(action: onClose) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 20, height: 20)
+                        .background(.quaternary, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut(.cancelAction)
+                .help("Close (Esc)")
+                .frame(maxWidth: .infinity, alignment: .trailing)
+            }
             if !model.accessibilityGranted {
                 AccessibilityBanner(onAllow: AccessibilityPermission.requestAndOpenSettings)
             }
-            ScrollView(.horizontal) {
-                if let content = model.content {
+            if let content = model.content {
+                ScrollView(.horizontal) {
                     ArrangeCanvas(
                         content: content,
                         drag: model.drag,
@@ -269,17 +254,37 @@ struct LayoutView: View {
                     )
                     .padding(.vertical, 4)
                 }
+                .frame(width: min(ArrangeCanvas.width(of: content), maximumCanvasWidth))
             }
             if let errorMessage = model.errorMessage {
                 Text(errorMessage).foregroundStyle(.red).font(.callout)
             }
-            Text("Drag items or the dividers to rearrange. You can also hold ⌘ and drag icons in the menu bar itself.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
         }
-        .padding(20)
-        .frame(minWidth: 520, maxWidth: .infinity, minHeight: 200, alignment: .topLeading)
+        .padding(EdgeInsets(top: 14, leading: 20, bottom: 18, trailing: 16))
+        .fixedSize()
+        .background {
+            PanelBackground(material: .popover).clipShape(LayoutPanel.shape)
+        }
+        .overlay {
+            LayoutPanel.shape.strokeBorder(.white.opacity(0.14), lineWidth: 1)
+        }
     }
+}
+
+/// The window's own translucent material, which shows the dimmed screen
+/// behind the panel through a blur.
+private struct PanelBackground: NSViewRepresentable {
+    let material: NSVisualEffectView.Material
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = material
+        view.blendingMode = .behindWindow
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_ view: NSVisualEffectView, context: Context) {}
 }
 
 /// The strip: section backgrounds and headers, the managed entries at the
@@ -304,6 +309,13 @@ struct ArrangeCanvas: View {
     private static let iconWidth: CGFloat = 40
     private static let overflowLabelHeight: CGFloat = 20
     private static let overflowColor = Color.orange
+
+    /// The canvas's width for `content`: the strip, then Barbarian's icon
+    /// and macOS's items.
+    static func width(of content: ArrangeContent) -> CGFloat {
+        let systemItemsWidth = content.layout.systemItems.map { content.widths[$0.windowID] ?? 0 }.reduce(0, +)
+        return content.strip.width + trailingGap + iconWidth + systemItemsWidth
+    }
 
     var body: some View {
         let strip = content.strip
@@ -353,6 +365,11 @@ struct ArrangeCanvas: View {
         .coordinateSpace(.named(Self.coordinateSpace))
     }
 
+    private func overflowLabel(itemCount: Int) -> String {
+        if content.isCutOffByNotch { return "← Cut off by the notch" }
+        return itemCount == 1 ? "← No room for this one right now" : "← No room for these \(itemCount) right now"
+    }
+
     /// Shading over the items that do not fit, inside their sections, a
     /// dashed line where the room ends, and one label under the line.
     @ViewBuilder
@@ -374,7 +391,7 @@ struct ArrangeCanvas: View {
             path.addLine(to: CGPoint(x: endX, y: Self.headerHeight + sectionHeight + Self.overflowLabelHeight))
         }
         .stroke(Self.overflowColor, style: StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
-        Text(itemCount == 1 ? "← No room for this one right now" : "← No room for these \(itemCount) right now")
+        Text(overflowLabel(itemCount: itemCount))
             .font(.system(size: 11))
             .foregroundStyle(Self.overflowColor)
             .fixedSize()
@@ -599,10 +616,11 @@ private struct DividerChip: View {
     let isLifted: Bool
 
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 5) {
+            Capsule().frame(width: 3, height: 16)
             Image(systemName: role.symbolName)
                 .font(.system(size: 9, weight: .heavy))
-            Capsule().frame(width: 3, height: 34)
+            Capsule().frame(width: 3, height: 16)
         }
         .foregroundStyle(Color.accentColor)
         .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -11,6 +11,8 @@ import BarbarianSystem
 struct ItemPresentation {
     private let names: [WindowID: String]
     private let symbolNames: [WindowID: String]
+    /// Items whose symbol stands in for their capture.
+    private let prefersSymbol: Set<WindowID>
     private let images: ItemImageCache?
 
     init(layout: MenuBarLayout?, images: ItemImageCache?) {
@@ -23,6 +25,7 @@ struct ItemPresentation {
         let itemCountByOwner = items.reduce(into: [Int32: Int]()) { $0[$1.ownerPID, default: 0] += 1 }
         var names: [WindowID: String] = [:]
         var symbolNames: [WindowID: String] = [:]
+        var prefersSymbol: Set<WindowID> = []
         for item in items {
             let app = NSRunningApplication(processIdentifier: item.ownerPID)
             let label = accessibilityLabels[item.windowID]
@@ -36,9 +39,11 @@ struct ItemPresentation {
                 accessibilityName: label?.name
             )
             symbolNames[item.windowID] = systemItem?.symbolName
+            if systemItem?.drawsText == true { prefersSymbol.insert(item.windowID) }
         }
         self.names = names
         self.symbolNames = symbolNames
+        self.prefersSymbol = prefersSymbol
     }
 
     func name(of item: MenuBarItem) -> String {
@@ -48,7 +53,7 @@ struct ItemPresentation {
     /// The item's own image scaled down to fit `size` points high, a symbol
     /// that looks like the item, or its app's icon at `size` points square.
     func icon(of item: MenuBarItem, size: CGFloat = 16) -> NSImage? {
-        if let captured = images?.image(of: item.windowID) {
+        if !prefersSymbol.contains(item.windowID), let captured = images?.image(of: item.windowID) {
             let image = captured.copy() as! NSImage
             let scale = min(1, size / captured.size.height)
             image.size = NSSize(width: captured.size.width * scale, height: captured.size.height * scale)

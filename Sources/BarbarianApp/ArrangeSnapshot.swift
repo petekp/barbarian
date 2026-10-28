@@ -35,7 +35,7 @@ enum ArrangeSnapshot {
             drag = liftedDrag(of: entry, to: index, in: layout, widths: widths)
         }
 
-        let content = ArrangeContent(layout: layout, pendingOrder: nil, drag: drag, presentation: presentation, widths: widths)
+        let content = ArrangeContent(layout: layout, pendingOrder: nil, drag: drag, presentation: presentation, widths: widths, isCutOffByNotch: barbarian.menuBar.display.hasNotch)
         let isDark = NSApplication.shared.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let renderer = ImageRenderer(
             content: ArrangeCanvas(content: content, drag: drag, canDrag: true)
