@@ -35,18 +35,18 @@ The steps to take Barbarian from a personal tool to a public 0.1.0 release. The 
 
 ## 4. Build the release
 
-Add `scripts/release.sh`. It should do these steps in order:
+`scripts/release.sh` does these steps in order. Its header lists the one-time setup and what to change before each release.
 
 1. Build a universal binary, arm64 and x86_64, in release configuration. macOS 15 still runs on Intel Macs.
 2. Sign with the Developer ID Application certificate, with the hardened runtime and a secure timestamp. That certificate is already in Pete's keychain.
 3. Notarize with `xcrun notarytool submit --wait`, then staple the ticket.
 4. Zip the app with `ditto -c -k --keepParent`, and print its SHA-256 for the cask.
-5. Sign the zip and write `appcast.xml` with Sparkle's `generate_appcast`.
-6. Tag the version and create the GitHub release with `gh release create`, attaching the zip and `appcast.xml`.
+5. Sign the zip and write `appcast.xml` with Sparkle's `generate_appcast`, with the version's `CHANGELOG.md` section as release notes.
+6. With `--publish`, tag the version and create the GitHub release with `gh release create`, attaching the zip and `appcast.xml`.
 
 Two one-time setup steps:
 
-- Pete stores notarization credentials with `xcrun notarytool store-credentials`. That needs his Apple ID and an app-specific password, so only he can do it.
+- Pete stores notarization credentials with `xcrun notarytool store-credentials barbarian-notary`. That needs his Apple ID and an app-specific password, so only he can do it.
 - Sparkle's `generate_keys` makes the update signing key and keeps the private half in Pete's login keychain. The public half goes in `Info.plist` as `SUPublicEDKey`. Losing the private key means existing installs can no longer verify updates, so back it up with `generate_keys -x`.
 
 CI that runs `swift test` on each push is worth adding later. GitHub Actions changes need Pete's approval case by case.

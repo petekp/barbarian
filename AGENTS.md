@@ -15,6 +15,7 @@ Agents build and maintain all of it. Read these before changing behavior:
 | Unit tests | `swift test` |
 | Build, sign and install to `~/Applications/Barbarian.app` | `scripts/build-app.sh` |
 | Quit the running copy and open the installed one | `scripts/restart-app.sh` |
+| Build a notarized release and its update feed; `--publish` also tags it and creates the GitHub release | `scripts/release.sh [--publish]` |
 | Redraw `Resources/AppIcon.icns` after changing the axe or the icon colors | `scripts/make-app-icon.sh` |
 | List the active menu bar's items with title, Accessibility name, position and section | `.build/debug/Barbarian --print-items` |
 | Render the Arrange panel's strip to a PNG without opening it, optionally with an item or divider mid-drag | `.build/debug/Barbarian --render-arrange <file.png> [--lift <window ID> <index>] [--item-images]` |
