@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1 (unreleased)
+
+- The camera and microphone indicator is named "Camera and Mic", so its name fits.
+
 ## 0.1.0
 
 The first public release.

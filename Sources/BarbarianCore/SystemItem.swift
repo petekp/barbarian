@@ -38,7 +38,7 @@ public enum SystemItem: CaseIterable, Sendable {
         switch self {
         case .accessibilityShortcuts: "Accessibility Shortcuts"
         case .battery: "Battery"
-        case .cameraAndMicrophone: "Camera and Microphone"
+        case .cameraAndMicrophone: "Camera and Mic"
         case .clock: "Clock"
         case .controlCenter: "Control Center"
         case .focus: "Focus"
