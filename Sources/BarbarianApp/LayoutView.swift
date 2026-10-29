@@ -91,7 +91,7 @@ struct ArrangeContent {
 
     /// Every item's width: its name's, within limits.
     static func widths(of layout: MenuBarLayout, presentation: ItemPresentation) -> [WindowID: CGFloat] {
-        let items = layout.entries.compactMap(\.item) + layout.systemItems
+        let items = layout.entries.compactMap(\.item) + layout.notDrawnItems + layout.systemItems
         return Dictionary(items.map { item in
             let textWidth = (presentation.name(of: item) as NSString).size(withAttributes: [.font: nameFont]).width
             return (item.windowID, min(max(textWidth.rounded(.up) + 14, minimumItemWidth), 120))
@@ -198,7 +198,7 @@ final class LayoutEditorModel {
 
     private func readLayout(_ latest: MenuBarLayout? = nil) -> MenuBarLayout? {
         guard let latest = latest ?? controller.currentLayout() else { return nil }
-        return baseline.map { latest.keepingStaleItems(asIn: $0, revealedFrom: baselineState) } ?? latest
+        return baseline.map { latest.settingAsideStaleItems(comparedWith: $0, revealedFrom: baselineState) } ?? latest
     }
 
     private func apply(_ latest: MenuBarLayout?) {
@@ -393,13 +393,27 @@ struct ArrangeCanvas: View {
     private static let trailingGap: CGFloat = 10
     private static let iconWidth: CGFloat = 40
     private static let overflowLabelHeight: CGFloat = 20
+    private static let notShowingGap: CGFloat = 6
     private static let overflowColor = Color.orange
 
     /// The canvas's width for `content`: the strip, then Barbarian's icon
-    /// and macOS's items.
+    /// and macOS's items, or the row of items not showing when it is wider.
     static func width(of content: ArrangeContent) -> CGFloat {
         let systemItemsWidth = content.layout.systemItems.map { content.widths[$0.windowID] ?? 0 }.reduce(0, +)
-        return content.strip.width + trailingGap + iconWidth + systemItemsWidth
+        return max(content.strip.width + trailingGap + iconWidth + systemItemsWidth, notShowingWidth(of: content))
+    }
+
+    private static func notShowingWidth(of content: ArrangeContent) -> CGFloat {
+        let items = content.layout.notDrawnItems
+        guard !items.isEmpty else { return 0 }
+        let itemsWidth = items.map { content.widths[$0.windowID] ?? 0 }.reduce(0, +)
+        return itemsWidth + CGFloat(items.count - 1) * ArrangeContent.metrics.spacing + 2 * stripInset
+    }
+
+    private static func height(of content: ArrangeContent) -> CGFloat {
+        let sectionHeight = ArrangeContent.metrics.height + 2 * stripInset
+        let stripHeight = headerHeight + sectionHeight + overflowLabelHeight
+        return content.layout.notDrawnItems.isEmpty ? stripHeight : stripHeight + notShowingGap + headerHeight + sectionHeight + notShowingGap
     }
 
     var body: some View {
@@ -437,13 +451,35 @@ struct ArrangeCanvas: View {
                 }
             }
             .offset(x: trailingX, y: stripY)
+            if !content.layout.notDrawnItems.isEmpty {
+                notShowingRow(top: Self.headerHeight + sectionHeight + Self.overflowLabelHeight + Self.notShowingGap, sectionHeight: sectionHeight)
+            }
         }
-        .frame(
-            width: Self.width(of: content),
-            height: Self.headerHeight + sectionHeight + Self.overflowLabelHeight,
-            alignment: .topLeading
-        )
+        .frame(width: Self.width(of: content), height: Self.height(of: content), alignment: .topLeading)
         .coordinateSpace(.named(Self.coordinateSpace))
+    }
+
+    /// Items their app is not drawing, apart from the strip: they cannot be
+    /// moved until they appear, and nothing tells where they will appear.
+    private func notShowingRow(top: CGFloat, sectionHeight: CGFloat) -> some View {
+        let spacing = ArrangeContent.metrics.spacing
+        return ZStack(alignment: .topLeading) {
+            SectionHeading(title: "Not showing now", caption: "Arrange these while they're in the menu bar", isDimmed: false)
+                .offset(x: 4)
+            SectionBackground.shape
+                .fill(Color.primary.opacity(0.04))
+                .strokeBorder(Color.primary.opacity(0.18), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                .frame(width: Self.notShowingWidth(of: content), height: sectionHeight)
+                .offset(y: Self.headerHeight)
+            HStack(spacing: spacing) {
+                ForEach(content.layout.notDrawnItems) { item in
+                    itemChip(item, status: .notShowing(while: content.presentation.systemItem(of: item)?.showsWhile), isLifted: false)
+                        .frame(width: content.widths[item.windowID], height: ArrangeContent.metrics.height)
+                }
+            }
+            .offset(x: Self.stripInset, y: Self.headerHeight + Self.stripInset)
+        }
+        .offset(y: top)
     }
 
     private func overflowLabel(itemCount: Int) -> String {
@@ -483,7 +519,7 @@ struct ArrangeCanvas: View {
     @ViewBuilder
     private func entryView(_ entry: MenuBarLayout.Entry, frame: CGRect) -> some View {
         let isLifted = drag?.entry.id == entry.id
-        let isDraggable = canDrag && entry.item.map { !content.layout.isNotDrawn($0) } ?? true
+        let isDraggable = canDrag
         let centerX = isLifted ? drag?.entryCenterX ?? frame.midX : frame.midX
         let center = CGPoint(x: centerX, y: frame.midY)
         Group {
@@ -491,8 +527,7 @@ struct ArrangeCanvas: View {
             case .divider:
                 DividerChip(role: content.dividerRole(of: entry), isLifted: isLifted)
             case .item(let item):
-                let status: ItemChip.Status = content.layout.isNotDrawn(item) ? .notDrawn : (content.itemsThatDoNotFit.contains(item.windowID) ? .doesNotFit : .shown)
-                itemChip(item, status: status, isLifted: isLifted)
+                itemChip(item, status: content.itemsThatDoNotFit.contains(item.windowID) ? .doesNotFit : .shown, isLifted: isLifted)
             }
         }
         .frame(width: frame.width, height: frame.height)
@@ -579,7 +614,12 @@ private struct SectionBackground: View {
 }
 
 private struct ItemChip: View {
-    enum Status { case shown, doesNotFit, notDrawn, placedByMacOS }
+    enum Status: Equatable {
+        case shown, doesNotFit, placedByMacOS
+        /// Not drawn by its app. `while` says when macOS shows it, worded
+        /// to follow "while", when that is known.
+        case notShowing(while: String?)
+    }
 
     let name: String
     let icon: NSImage?
@@ -592,23 +632,13 @@ private struct ItemChip: View {
     private static let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
 
     var body: some View {
-        let isNotDrawn = status == .notDrawn
-        VStack(spacing: isNotDrawn ? 3 : 4) {
-            if isNotDrawn {
-                iconImage
-                    .scaleEffect(0.6)
-                    .frame(width: 24, height: 24)
-                    .opacity(0.5)
-                    .background(Circle().strokeBorder(.tertiary, style: StrokeStyle(lineWidth: 1, dash: [2, 2])))
-            } else {
-                iconImage.frame(height: 24)
-            }
+        VStack(spacing: showsWhile == nil ? 4 : 2) {
+            iconImage.frame(height: showsWhile == nil ? 24 : 20)
             Text(name)
                 .font(Font(ArrangeContent.nameFont))
                 .lineLimit(1)
-                .foregroundStyle(isNotDrawn ? .secondary : .primary)
-            if isNotDrawn {
-                Text("Not showing").font(.system(size: 9.5)).foregroundStyle(.tertiary)
+            if let showsWhile {
+                Text("While \(showsWhile)").font(.system(size: 9.5)).foregroundStyle(.secondary)
             }
         }
         .padding(.horizontal, 4)
@@ -631,12 +661,20 @@ private struct ItemChip: View {
         .scaleEffect(isLifted ? 1.08 : 1)
         .animation(.spring(duration: 0.25, bounce: 0.2), value: isLifted)
         .animation(.easeOut(duration: 0.12), value: isHovered)
-        .onHover { isHovered = status != .placedByMacOS && $0 }
+        .onHover { isHovered = isMovable && $0 }
         .help(help)
     }
 
+    private var isMovable: Bool {
+        status == .shown || status == .doesNotFit
+    }
+
     private var isDimmed: Bool {
-        status == .doesNotFit || status == .placedByMacOS
+        status != .shown
+    }
+
+    private var showsWhile: String? {
+        if case .notShowing(let condition) = status { condition } else { nil }
     }
 
     @ViewBuilder private var iconImage: some View {
@@ -654,8 +692,9 @@ private struct ItemChip: View {
         switch status {
         case .shown: name
         case .doesNotFit: "\(name) doesn't fit in the menu bar right now"
-        case .notDrawn: "\(name) isn't showing right now. Its app shows it only sometimes."
         case .placedByMacOS: "\(name) is placed by macOS"
+        case .notShowing(let condition?): "\(name): in the menu bar only while \(condition). Arrange it then."
+        case .notShowing(nil): "\(name) isn't in the menu bar right now. Arrange it while it is."
         }
     }
 }

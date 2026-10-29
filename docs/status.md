@@ -29,7 +29,7 @@ Checked in a Tart VM on macOS 15.7.7 with Accessibility, on 2026-10-28, with a d
 - The Arrange panel opens at the top right with the rest of the screen dimmed. Dragging an item to another section and back, and dragging a divider, moved the real items, checked with `--print-items`. Escape, the close button and a click on the dimmed area each close it.
 - Check for Updates… is in the items menu and disabled in a debug build.
 
-Checked in the same VM on 2026-10-29 with Now Playing, which macOS draws only while something plays. The same posted Command-drag Barbarian uses moved Now Playing while it was drawn, and macOS saved the new position. Posted while it was not drawn, the drag changed the frame the window list reports, but macOS kept the saved position, and Now Playing came back in its old place when playback resumed. So an item that is not drawn cannot be moved, and its frame changing does not show a move landed. The Arrange panel does not let you drag such items.
+Checked in the same VM on 2026-10-29 with Now Playing, which macOS draws only while something plays. The same posted Command-drag Barbarian uses moved Now Playing while it was drawn, and macOS saved the new position. Posted while it was not drawn, the drag changed the frame the window list reports, but macOS kept the saved position, and Now Playing came back in its old place when playback resumed. So an item that is not drawn cannot be moved, and its frame changing does not show a move landed. The Arrange panel shows such items in their own row, apart from the strip.
 
 ## Built, not yet verified
 
@@ -46,5 +46,4 @@ Checked in the same VM on 2026-10-29 with Now Playing, which macOS draws only wh
 - With two displays whose menu bars have the same height, copies of items their app is not drawing show up as extra entries. See `MenuBarMembership`.
 - A Control Center item that is not drawn, such as Focus with no Focus on, has no Accessibility element. Barbarian names it "Control Center".
 - An Accessibility name can include the item's status, as Wi-Fi's does, so it changes while you watch.
-- In the Arrange panel, an item its app is not drawing stays beside the entry it followed when the panel opened. Moving that neighbor carries it along. An item that only appeared after the panel opened has no neighbor and goes to the far left.
 - An item in Shown that does not fit keeps the same frame when sections are revealed, so it is told apart only by the cutoff count, not by its frame.

@@ -75,6 +75,17 @@ public enum SystemItem: CaseIterable, Sendable {
         }
     }
 
+    /// When macOS shows the item, for items it shows only some of the time,
+    /// worded to follow "while".
+    public var showsWhile: String? {
+        switch self {
+        case .cameraAndMicrophone: "in use"
+        case .focus: "on"
+        case .nowPlaying: "playing"
+        default: nil
+        }
+    }
+
     /// Whether the item draws text, as the clock draws the time. Text is
     /// unreadable at icon size, so the symbol stands in even when the item
     /// has been captured.

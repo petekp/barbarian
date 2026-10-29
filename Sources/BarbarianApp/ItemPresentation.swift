@@ -14,7 +14,7 @@ struct ItemPresentation {
     private let images: ItemImageCache?
 
     init(layout: MenuBarLayout?, images: ItemImageCache?) {
-        self.init(items: layout.map { $0.entries.compactMap(\.item) + $0.systemItems } ?? [], images: images)
+        self.init(items: layout.map { $0.entries.compactMap(\.item) + $0.notDrawnItems + $0.systemItems } ?? [], images: images)
     }
 
     init(items: [MenuBarItem], images: ItemImageCache?) {
@@ -43,6 +43,10 @@ struct ItemPresentation {
 
     func name(of item: MenuBarItem) -> String {
         names[item.windowID] ?? item.ownerName
+    }
+
+    func systemItem(of item: MenuBarItem) -> SystemItem? {
+        systemItems[item.windowID]
     }
 
     /// The item's own image scaled down to fit `size` points high, a symbol

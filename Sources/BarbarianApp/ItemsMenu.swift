@@ -19,7 +19,7 @@ enum ItemsMenu {
         if let layout {
             let presentation = ItemPresentation(layout: layout, images: controller.itemImages)
             let sections: [(title: String, items: [MenuBarItem])] = [MenuBarSection.shown, .hidden, .alwaysHidden].map { section in
-                (section.title, layout.items(in: section).filter { !layout.isNotDrawn($0) })
+                (section.title, layout.items(in: section))
             }
             let icons = IconColumn(items: sections.flatMap(\.items), presentation: presentation)
             for (title, items) in sections {

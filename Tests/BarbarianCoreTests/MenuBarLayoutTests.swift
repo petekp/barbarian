@@ -87,7 +87,7 @@ private func layout(_ items: [MenuBarItem]) throws -> MenuBarLayout {
     #expect(bar.destination(placing: 2, before: 2) == nil)
 }
 
-@Test func anOffScreenItemRightOfADrawnItemIsNotDrawn() throws {
+@Test func anOffScreenItemRightOfADrawnItemIsNotDrawnAndSetAside() throws {
     let notDrawn = item(1, x: 1140, onScreen: false)
     let drawn = item(2, x: 1100)
     let doesNotFitAtTheLeftEdge = item(3, x: 862, onScreen: false)
@@ -95,7 +95,8 @@ private func layout(_ items: [MenuBarItem]) throws -> MenuBarLayout {
     let collapsed = item(5, x: -4_000, onScreen: false)
     let bar = try layout([collapsed, doesNotFitPastTheNotch, doesNotFitAtTheLeftEdge, drawn, notDrawn, item(100, x: 1200)])
 
-    #expect(bar.notDrawnItems == [notDrawn.windowID])
+    #expect(bar.notDrawnItems.map(\.windowID) == [notDrawn.windowID])
+    #expect(bar.entries.map(\.id) == [5, 4, 3, 2])
 }
 
 @Test func itemsLeftOfAsManyAsFitCountedFromTheRightDoNotFit() throws {
@@ -108,12 +109,13 @@ private func layout(_ items: [MenuBarItem]) throws -> MenuBarLayout {
     ])
     let moved = bar.entries(inOrder: nil, moving: bar.entries[0], to: 2)
 
+    #expect(bar.entries.map(\.id) == [1, 2, 3])
     #expect(bar.positionsThatDoNotFitWithEverySectionShown(inOrder: bar.entries) == [0])
-    #expect(moved.map(\.id) == [2, 3, 1, 4])
+    #expect(moved.map(\.id) == [2, 3, 1])
     #expect(bar.positionsThatDoNotFitWithEverySectionShown(inOrder: moved) == [0])
 }
 
-@Test func anItemThatHasNotMovedSinceBeforeTheRevealKeepsItsPlace() throws {
+@Test func anItemThatHasNotMovedSinceBeforeTheRevealIsSetAside() throws {
     let collapsed = try layout([
         item(102, x: -9_000, width: 14, owner: "Barbarian"),
         item(1, x: -4_100, onScreen: false),
@@ -133,12 +135,11 @@ private func layout(_ items: [MenuBarItem]) throws -> MenuBarLayout {
         item(100, x: 1_200),
     ])
 
-    let kept = revealed.keepingStaleItems(asIn: collapsed, revealedFrom: .showingShownOnly)
+    let kept = revealed.settingAsideStaleItems(comparedWith: collapsed, revealedFrom: .showingShownOnly)
 
-    #expect(kept.entries.map(\.id) == [102, 1, 2, 101, 3, 4])
-    #expect(kept.notDrawnItems == [1, 3])
-    #expect(kept.section(of: 1) == .hidden)
-    #expect(kept.section(of: 3) == .shown)
+    #expect(kept.entries.map(\.id) == [102, 2, 101, 4])
+    #expect(kept.notDrawnItems.map(\.windowID) == [1, 3])
+    #expect(kept.section(of: 1) == nil)
 }
 
 @Test func anItemThatDoesNotFitIsNotStaleWhenNothingWasCollapsed() throws {
@@ -150,13 +151,13 @@ private func layout(_ items: [MenuBarItem]) throws -> MenuBarLayout {
         item(100, x: 1_200),
     ])
 
-    let kept = revealed.keepingStaleItems(asIn: revealed, revealedFrom: .showingAll)
+    let kept = revealed.settingAsideStaleItems(comparedWith: revealed, revealedFrom: .showingAll)
 
     #expect(kept.notDrawnItems.isEmpty)
     #expect(kept.positionsThatDoNotFitWithEverySectionShown(inOrder: kept.entries) == [0])
 }
 
-@Test func movingToAnIndexAimsAtTheReliableEntryOnItsRight() throws {
+@Test func movingToAnIndexAimsAtTheDrawnEntryThatWillBeOnItsRight() throws {
     let bar = try layout([
         item(1, x: 900),
         item(102, x: 930, width: 14),
@@ -167,12 +168,13 @@ private func layout(_ items: [MenuBarItem]) throws -> MenuBarLayout {
         item(100, x: 1048),
     ])
 
+    #expect(bar.entries.map(\.id) == [1, 102, 101, 2, 4])
     #expect(bar.destination(moving: 1, to: 2) == .leftOf(2))
     #expect(bar.destination(moving: 1, to: 3) == .leftOf(4))
-    #expect(bar.destination(moving: 1, to: 5) == .leftOf(100))
-    #expect(bar.destination(moving: 4, to: 5) == nil)
+    #expect(bar.destination(moving: 1, to: 4) == .leftOf(100))
+    #expect(bar.destination(moving: 4, to: 4) == nil)
     #expect(bar.destination(moving: 2, to: 2) == .leftOf(101))
-    #expect(bar.destination(moving: 101, to: 4) == .leftOf(4))
+    #expect(bar.destination(moving: 101, to: 3) == .leftOf(4))
 }
 
 @Test func barbarianWindowsAreFoundByOwnerInLeftToRightOrder() throws {

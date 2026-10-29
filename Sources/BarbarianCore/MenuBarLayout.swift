@@ -35,7 +35,7 @@ public struct MenuBarLayout: Sendable, Equatable {
     }
 
     /// Managed items and both dividers, left to right. Everything here sits
-    /// left of Barbarian's icon.
+    /// left of Barbarian's icon. Items their app is not drawing are left out.
     public let entries: [Entry]
 
     public let controls: ControlItemIDs
@@ -46,12 +46,17 @@ public struct MenuBarLayout: Sendable, Equatable {
 
     /// Managed items off screen because their app is not drawing them, as
     /// Now Playing is when nothing plays, rather than because they do not
-    /// fit. Their frames are stale.
+    /// fit, left to right by their last frames.
     ///
     /// macOS drops items that do not fit from the left end of the bar, so
     /// they sit left of every drawn item. An item its app is not drawing keeps
     /// its last frame, inside the visible bar and right of a drawn item.
-    public let notDrawnItems: Set<WindowID>
+    ///
+    /// Such an item cannot be moved, and its frame says nothing about where
+    /// it will appear. macOS saves its place as a distance from the screen's
+    /// right edge, and a move posted while it is not drawn changes its frame
+    /// without changing that distance.
+    public let notDrawnItems: [MenuBarItem]
 
     /// Reads a layout from one menu bar's items. `statusArea` is the x range
     /// where status items can appear in that menu bar.
@@ -68,22 +73,24 @@ public struct MenuBarLayout: Sendable, Equatable {
             .filter { $0.frame.minX < icon.frame.minX }
             .sorted { $0.frame.minX < $1.frame.minX }
 
-        entries = Self.assigningDividerRoles(managed.map { item in
+        let leftmostOnScreenX = (managed + [icon]).filter(\.isOnScreen).map(\.frame.minX).min() ?? icon.frame.minX
+        let notDrawn = managed.filter { item in
+            !item.isOnScreen
+                && !controls.dividers.contains(item.windowID)
+                && statusArea.contains(item.frame.minX)
+                && statusArea.contains(item.frame.maxX)
+                && item.frame.minX > leftmostOnScreenX
+        }
+        notDrawnItems = notDrawn
+        entries = Self.assigningDividerRoles(managed.filter { !notDrawn.contains($0) }.map { item in
             controls.dividers.contains(item.windowID) ? .divider(.hidden, item.windowID) : .item(item)
         })
         systemItems = placed
             .filter { $0.frame.minX > icon.frame.minX }
             .sorted { $0.frame.minX < $1.frame.minX }
-        let leftmostOnScreenX = (managed + [icon]).filter(\.isOnScreen).map(\.frame.minX).min() ?? icon.frame.minX
-        notDrawnItems = Set(entries.compactMap(\.item).filter { item in
-            !item.isOnScreen
-                && statusArea.contains(item.frame.minX)
-                && statusArea.contains(item.frame.maxX)
-                && item.frame.minX > leftmostOnScreenX
-        }.map(\.windowID))
     }
 
-    private init(entries: [Entry], controls: ControlItemIDs, systemItems: [MenuBarItem], notDrawnItems: Set<WindowID>) {
+    private init(entries: [Entry], controls: ControlItemIDs, systemItems: [MenuBarItem], notDrawnItems: [MenuBarItem]) {
         self.entries = entries
         self.controls = controls
         self.systemItems = systemItems
@@ -91,16 +98,14 @@ public struct MenuBarLayout: Sendable, Equatable {
     }
 
     /// This layout, read after revealing every section, with the items their
-    /// app is not drawing put back where they were in `baseline`, a layout
-    /// read in `baselineState` before revealing.
+    /// app is not drawing set aside, compared with `baseline`, a layout read
+    /// in `baselineState` before revealing.
     ///
     /// Revealing a collapsed section moves every drawn item in it. An item
     /// of a collapsed section that is off screen with the same frame as in
-    /// `baseline` is not drawn: its frame is stale and would place it by
-    /// where the dividers are now. It goes back right of the entry it
-    /// followed in `baseline`, so its section holds still. Items of sections
-    /// that were already shown do not move, so their frames tell nothing.
-    public func keepingStaleItems(asIn baseline: MenuBarLayout, revealedFrom baselineState: HidingState) -> MenuBarLayout {
+    /// `baseline` is not drawn. Items of sections that were already shown do
+    /// not move, so their frames tell nothing.
+    public func settingAsideStaleItems(comparedWith baseline: MenuBarLayout, revealedFrom baselineState: HidingState) -> MenuBarLayout {
         let baselineFrames = Dictionary(baseline.entries.compactMap(\.item).map { ($0.windowID, $0.frame) }, uniquingKeysWith: { first, _ in first })
         func wasCollapsed(_ id: WindowID) -> Bool {
             switch baseline.section(of: id) {
@@ -109,23 +114,16 @@ public struct MenuBarLayout: Sendable, Equatable {
             case .shown, nil: false
             }
         }
-        let stale = Set(entries.compactMap(\.item).filter { item in
-            guard !item.isOnScreen else { return false }
-            return isNotDrawn(item)
-                || (wasCollapsed(item.windowID) && baselineFrames[item.windowID] == item.frame)
-        }.map(\.windowID))
-        guard !stale.isEmpty else { return self }
-
-        var ordered = entries.filter { !stale.contains($0.id) }
-        let baselineIDs = baseline.entries.map(\.id)
-        for staleEntry in entries where stale.contains(staleEntry.id) {
-            let leftNeighbor = baselineIDs.firstIndex(of: staleEntry.id).flatMap { index in
-                baselineIDs[..<index].last { id in ordered.contains { $0.id == id } }
-            }
-            let insertionIndex = leftNeighbor.flatMap { id in ordered.firstIndex { $0.id == id } }.map { $0 + 1 } ?? 0
-            ordered.insert(staleEntry, at: insertionIndex)
+        let stale = entries.compactMap(\.item).filter { item in
+            !item.isOnScreen && wasCollapsed(item.windowID) && baselineFrames[item.windowID] == item.frame
         }
-        return MenuBarLayout(entries: Self.assigningDividerRoles(ordered), controls: controls, systemItems: systemItems, notDrawnItems: stale)
+        guard !stale.isEmpty else { return self }
+        return MenuBarLayout(
+            entries: Self.assigningDividerRoles(entries.filter { entry in !stale.contains { $0.windowID == entry.id } }),
+            controls: controls,
+            systemItems: systemItems,
+            notDrawnItems: (notDrawnItems + stale).sorted { $0.frame.minX < $1.frame.minX }
+        )
     }
 
     /// The entries with each divider's role set by position: the left
@@ -188,22 +186,17 @@ public struct MenuBarLayout: Sendable, Equatable {
         }
     }
 
-    public func isNotDrawn(_ item: MenuBarItem) -> Bool {
-        notDrawnItems.contains(item.windowID)
-    }
-
     /// The positions in `order`, a rearranged copy of `entries`, of the
     /// items that would not fit with every section shown, as the Arrange
     /// panel keeps them.
     ///
     /// macOS fills the bar from the right and leaves out the leftmost items
     /// once it is full. As many items fit as are on screen now, so the items
-    /// left of that many, counted from the right, do not fit. Items their
-    /// app is not drawing take no room.
+    /// left of that many, counted from the right, do not fit.
     public func positionsThatDoNotFitWithEverySectionShown(inOrder order: [Entry]) -> [Int] {
-        let fitCount = entries.compactMap(\.item).filter { $0.isOnScreen && !isNotDrawn($0) }.count
-        let drawnPositions = order.indices.filter { order[$0].item.map { !isNotDrawn($0) } ?? false }
-        return Array(drawnPositions.dropLast(fitCount))
+        let fitCount = entries.compactMap(\.item).filter(\.isOnScreen).count
+        let itemPositions = order.indices.filter { order[$0].item != nil }
+        return Array(itemPositions.dropLast(fitCount))
     }
 
     /// The entries in `order` where it names them, else in their own order,
@@ -219,10 +212,8 @@ public struct MenuBarLayout: Sendable, Equatable {
         return result
     }
 
-    /// Whether the entries are in `order`. Items their app is not drawing
-    /// report stale frames, so their place is not compared.
     public func hasOrder(_ order: [WindowID]) -> Bool {
-        entries.map(\.id).filter { !notDrawnItems.contains($0) } == order.filter { !notDrawnItems.contains($0) }
+        entries.map(\.id) == order
     }
 
     /// Where to drop `item` so it lands immediately left of `neighbor`.
@@ -240,15 +231,11 @@ public struct MenuBarLayout: Sendable, Equatable {
     /// among the other entries, counting from the left.
     ///
     /// The move aims at the entry that will sit on its right, or at
-    /// Barbarian's icon past the last entry. Items their app is not drawing
-    /// report stale frames, so the move aims past them at the next entry.
+    /// Barbarian's icon past the last entry.
     public func destination(moving entry: WindowID, to index: Int) -> MoveDestination? {
         let others = entries.map(\.id).filter { $0 != entry }
-        let rightNeighbor = others.dropFirst(min(index, others.count)).first { !notDrawnItems.contains($0) }
-        if let rightNeighbor {
-            return destination(placing: entry, before: rightNeighbor)
-        }
-        return entries.last?.id == entry ? nil : .leftOf(controls.icon)
+        guard index < others.count else { return entries.last?.id == entry ? nil : .leftOf(controls.icon) }
+        return destination(placing: entry, before: others[index])
     }
 }
 
