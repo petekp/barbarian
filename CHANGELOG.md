@@ -3,7 +3,8 @@
 ## 0.1.1 (unreleased)
 
 - The camera and microphone indicator is named "Camera and Mic", so its name fits.
-- Items macOS is not showing right now, such as Now Playing while nothing plays, move out of the Arrange strip into a "Not showing now" row. macOS does not let anyone move them until they appear, and where they appear does not depend on the items around them. Each says when it shows, where Barbarian knows.
+- Arrange leaves out items macOS is not showing right now, such as Now Playing while nothing plays. They can't be moved until they appear, and then they can be dragged like any other item.
+- Camera and Mic can't be dragged in Arrange. macOS always puts it left of the other items.
 
 ## 0.1.0
 

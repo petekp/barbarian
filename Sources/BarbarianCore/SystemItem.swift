@@ -75,15 +75,11 @@ public enum SystemItem: CaseIterable, Sendable {
         }
     }
 
-    /// When macOS shows the item, for items it shows only some of the time,
-    /// worded to follow "while".
-    public var showsWhile: String? {
-        switch self {
-        case .cameraAndMicrophone: "in use"
-        case .focus: "on"
-        case .nowPlaying: "playing"
-        default: nil
-        }
+    /// Whether macOS decides where the item goes. macOS saves no position
+    /// for the camera and microphone indicator and puts it left of the other
+    /// items each time it appears, wherever it was moved.
+    public var isPlacedByMacOS: Bool {
+        self == .cameraAndMicrophone
     }
 
     /// Whether the item draws text, as the clock draws the time. Text is

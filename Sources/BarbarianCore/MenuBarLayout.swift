@@ -35,7 +35,16 @@ public struct MenuBarLayout: Sendable, Equatable {
     }
 
     /// Managed items and both dividers, left to right. Everything here sits
-    /// left of Barbarian's icon. Items their app is not drawing are left out.
+    /// left of Barbarian's icon.
+    ///
+    /// Items their app is not drawing, as Now Playing is when nothing plays,
+    /// are left out. Such an item cannot be moved, and its frame says nothing
+    /// about where it will appear: macOS saves its place as a distance from
+    /// the screen's right edge, and a move posted while it is not drawn
+    /// changes its frame without changing that distance. macOS drops items
+    /// that do not fit from the left end of the bar, so they sit left of
+    /// every drawn item. An item its app is not drawing keeps its last frame,
+    /// inside the visible bar and right of a drawn item.
     public let entries: [Entry]
 
     public let controls: ControlItemIDs
@@ -43,20 +52,6 @@ public struct MenuBarLayout: Sendable, Equatable {
     /// Items right of Barbarian's icon, left to right. They belong to macOS
     /// and are not managed.
     public let systemItems: [MenuBarItem]
-
-    /// Managed items off screen because their app is not drawing them, as
-    /// Now Playing is when nothing plays, rather than because they do not
-    /// fit, left to right by their last frames.
-    ///
-    /// macOS drops items that do not fit from the left end of the bar, so
-    /// they sit left of every drawn item. An item its app is not drawing keeps
-    /// its last frame, inside the visible bar and right of a drawn item.
-    ///
-    /// Such an item cannot be moved, and its frame says nothing about where
-    /// it will appear. macOS saves its place as a distance from the screen's
-    /// right edge, and a move posted while it is not drawn changes its frame
-    /// without changing that distance.
-    public let notDrawnItems: [MenuBarItem]
 
     /// Reads a layout from one menu bar's items. `statusArea` is the x range
     /// where status items can appear in that menu bar.
@@ -81,7 +76,6 @@ public struct MenuBarLayout: Sendable, Equatable {
                 && statusArea.contains(item.frame.maxX)
                 && item.frame.minX > leftmostOnScreenX
         }
-        notDrawnItems = notDrawn
         entries = Self.assigningDividerRoles(managed.filter { !notDrawn.contains($0) }.map { item in
             controls.dividers.contains(item.windowID) ? .divider(.hidden, item.windowID) : .item(item)
         })
@@ -90,22 +84,21 @@ public struct MenuBarLayout: Sendable, Equatable {
             .sorted { $0.frame.minX < $1.frame.minX }
     }
 
-    private init(entries: [Entry], controls: ControlItemIDs, systemItems: [MenuBarItem], notDrawnItems: [MenuBarItem]) {
+    private init(entries: [Entry], controls: ControlItemIDs, systemItems: [MenuBarItem]) {
         self.entries = entries
         self.controls = controls
         self.systemItems = systemItems
-        self.notDrawnItems = notDrawnItems
     }
 
-    /// This layout, read after revealing every section, with the items their
-    /// app is not drawing set aside, compared with `baseline`, a layout read
-    /// in `baselineState` before revealing.
+    /// This layout, read after revealing every section, without the items
+    /// their app is not drawing, found by comparing it with `baseline`, a
+    /// layout read in `baselineState` before revealing.
     ///
     /// Revealing a collapsed section moves every drawn item in it. An item
     /// of a collapsed section that is off screen with the same frame as in
     /// `baseline` is not drawn. Items of sections that were already shown do
     /// not move, so their frames tell nothing.
-    public func settingAsideStaleItems(comparedWith baseline: MenuBarLayout, revealedFrom baselineState: HidingState) -> MenuBarLayout {
+    public func withoutStaleItems(comparedWith baseline: MenuBarLayout, revealedFrom baselineState: HidingState) -> MenuBarLayout {
         let baselineFrames = Dictionary(baseline.entries.compactMap(\.item).map { ($0.windowID, $0.frame) }, uniquingKeysWith: { first, _ in first })
         func wasCollapsed(_ id: WindowID) -> Bool {
             switch baseline.section(of: id) {
@@ -121,8 +114,7 @@ public struct MenuBarLayout: Sendable, Equatable {
         return MenuBarLayout(
             entries: Self.assigningDividerRoles(entries.filter { entry in !stale.contains { $0.windowID == entry.id } }),
             controls: controls,
-            systemItems: systemItems,
-            notDrawnItems: (notDrawnItems + stale).sorted { $0.frame.minX < $1.frame.minX }
+            systemItems: systemItems
         )
     }
 

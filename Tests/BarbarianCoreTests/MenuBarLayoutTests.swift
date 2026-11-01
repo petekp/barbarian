@@ -87,7 +87,7 @@ private func layout(_ items: [MenuBarItem]) throws -> MenuBarLayout {
     #expect(bar.destination(placing: 2, before: 2) == nil)
 }
 
-@Test func anOffScreenItemRightOfADrawnItemIsNotDrawnAndSetAside() throws {
+@Test func anOffScreenItemRightOfADrawnItemIsNotDrawnAndLeftOut() throws {
     let notDrawn = item(1, x: 1140, onScreen: false)
     let drawn = item(2, x: 1100)
     let doesNotFitAtTheLeftEdge = item(3, x: 862, onScreen: false)
@@ -95,7 +95,6 @@ private func layout(_ items: [MenuBarItem]) throws -> MenuBarLayout {
     let collapsed = item(5, x: -4_000, onScreen: false)
     let bar = try layout([collapsed, doesNotFitPastTheNotch, doesNotFitAtTheLeftEdge, drawn, notDrawn, item(100, x: 1200)])
 
-    #expect(bar.notDrawnItems.map(\.windowID) == [notDrawn.windowID])
     #expect(bar.entries.map(\.id) == [5, 4, 3, 2])
 }
 
@@ -115,7 +114,7 @@ private func layout(_ items: [MenuBarItem]) throws -> MenuBarLayout {
     #expect(bar.positionsThatDoNotFitWithEverySectionShown(inOrder: moved) == [0])
 }
 
-@Test func anItemThatHasNotMovedSinceBeforeTheRevealIsSetAside() throws {
+@Test func anItemThatHasNotMovedSinceBeforeTheRevealIsLeftOut() throws {
     let collapsed = try layout([
         item(102, x: -9_000, width: 14, owner: "Barbarian"),
         item(1, x: -4_100, onScreen: false),
@@ -135,11 +134,9 @@ private func layout(_ items: [MenuBarItem]) throws -> MenuBarLayout {
         item(100, x: 1_200),
     ])
 
-    let kept = revealed.settingAsideStaleItems(comparedWith: collapsed, revealedFrom: .showingShownOnly)
+    let kept = revealed.withoutStaleItems(comparedWith: collapsed, revealedFrom: .showingShownOnly)
 
     #expect(kept.entries.map(\.id) == [102, 2, 101, 4])
-    #expect(kept.notDrawnItems.map(\.windowID) == [1, 3])
-    #expect(kept.section(of: 1) == nil)
 }
 
 @Test func anItemThatDoesNotFitIsNotStaleWhenNothingWasCollapsed() throws {
@@ -151,9 +148,9 @@ private func layout(_ items: [MenuBarItem]) throws -> MenuBarLayout {
         item(100, x: 1_200),
     ])
 
-    let kept = revealed.settingAsideStaleItems(comparedWith: revealed, revealedFrom: .showingAll)
+    let kept = revealed.withoutStaleItems(comparedWith: revealed, revealedFrom: .showingAll)
 
-    #expect(kept.notDrawnItems.isEmpty)
+    #expect(kept.entries.map(\.id) == [1, 102, 101, 2])
     #expect(kept.positionsThatDoNotFitWithEverySectionShown(inOrder: kept.entries) == [0])
 }
 
