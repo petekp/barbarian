@@ -93,8 +93,18 @@ private func layout(_ items: [MenuBarItem]) throws -> MenuBarLayout {
     let doesNotFitAtTheLeftEdge = item(3, x: 862, onScreen: false)
     let doesNotFitPastTheNotch = item(4, x: 830, onScreen: false)
     let collapsed = item(5, x: -4_000, onScreen: false)
-    let bar = try layout([collapsed, doesNotFitPastTheNotch, doesNotFitAtTheLeftEdge, drawn, notDrawn, item(100, x: 1200)])
+    let notDrawnLeftOfDrawn = item(6, x: 1000, onScreen: false)
+    var askedAbout: [WindowID] = []
+    let bar = try #require(MenuBarLayout(
+        items: [collapsed, doesNotFitPastTheNotch, doesNotFitAtTheLeftEdge, notDrawnLeftOfDrawn, drawn, notDrawn, item(100, x: 1200)],
+        controls: controls,
+        statusArea: statusArea
+    ) { candidates in
+        askedAbout = candidates.map(\.windowID)
+        return [notDrawnLeftOfDrawn.windowID]
+    })
 
+    #expect(askedAbout == [3, 6])
     #expect(bar.entries.map(\.id) == [5, 4, 3, 2])
 }
 

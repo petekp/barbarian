@@ -46,6 +46,8 @@ struct RunningBarbarian {
             return nil
         }
         self.menuBar = menuBar
-        layout = MenuBarLayout(items: menuBar.items, barbarianPID: icon.ownerPID, statusArea: menuBar.display.statusArea)
+        layout = MenuBarLayout(items: menuBar.items, barbarianPID: icon.ownerPID, statusArea: menuBar.display.statusArea) { candidates in
+            AccessibilityItemLabels.itemsWithoutElement(candidates, among: menuBar.items)
+        }
     }
 }

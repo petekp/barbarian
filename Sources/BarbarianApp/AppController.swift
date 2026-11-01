@@ -84,7 +84,9 @@ final class AppController: NSObject, NSApplicationDelegate {
 
     func currentLayout() -> MenuBarLayout? {
         guard let ids = controlItems.ids, let menuBar = activeMenuBar() else { return nil }
-        return MenuBarLayout(items: menuBar.items, controls: ids, statusArea: menuBar.display.statusArea)
+        return MenuBarLayout(items: menuBar.items, controls: ids, statusArea: menuBar.display.statusArea) { candidates in
+            AccessibilityItemLabels.itemsWithoutElement(candidates, among: menuBar.items)
+        }
     }
 
     /// Captures the active menu bar's on-screen items for the items menu and

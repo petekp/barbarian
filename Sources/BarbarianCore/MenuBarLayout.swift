@@ -56,10 +56,21 @@ public struct MenuBarLayout: Sendable, Equatable {
     /// Reads a layout from one menu bar's items. `statusArea` is the x range
     /// where status items can appear in that menu bar.
     ///
+    /// An item off screen inside the visible bar but left of every drawn
+    /// item is either not drawn or does not fit. `itemsWithoutAccessibilityElement`
+    /// tells them apart: it is given those items and answers the ones their
+    /// app reports no Accessibility element for, which are not drawn. Items
+    /// that do not fit keep their element.
+    ///
     /// Divider roles follow position, not identity: the left divider always
     /// separates Always Hidden from Hidden. That keeps the sections in order
     /// when someone drags one divider past the other.
-    public init?(items: [MenuBarItem], controls: ControlItemIDs, statusArea: ClosedRange<CGFloat>) {
+    public init?(
+        items: [MenuBarItem],
+        controls: ControlItemIDs,
+        statusArea: ClosedRange<CGFloat>,
+        itemsWithoutAccessibilityElement: ([MenuBarItem]) -> Set<WindowID> = { _ in [] }
+    ) {
         guard let icon = items.first(where: { $0.windowID == controls.icon }) else { return nil }
         self.controls = controls
 
@@ -69,13 +80,15 @@ public struct MenuBarLayout: Sendable, Equatable {
             .sorted { $0.frame.minX < $1.frame.minX }
 
         let leftmostOnScreenX = (managed + [icon]).filter(\.isOnScreen).map(\.frame.minX).min() ?? icon.frame.minX
-        let notDrawn = managed.filter { item in
+        let offScreenInVisibleBar = managed.filter { item in
             !item.isOnScreen
                 && !controls.dividers.contains(item.windowID)
                 && statusArea.contains(item.frame.minX)
                 && statusArea.contains(item.frame.maxX)
-                && item.frame.minX > leftmostOnScreenX
         }
+        let leftOfDrawnItems = offScreenInVisibleBar.filter { $0.frame.minX <= leftmostOnScreenX }
+        let withoutElement = leftOfDrawnItems.isEmpty ? [] : itemsWithoutAccessibilityElement(leftOfDrawnItems)
+        let notDrawn = offScreenInVisibleBar.filter { $0.frame.minX > leftmostOnScreenX || withoutElement.contains($0.windowID) }
         entries = Self.assigningDividerRoles(managed.filter { !notDrawn.contains($0) }.map { item in
             controls.dividers.contains(item.windowID) ? .divider(.hidden, item.windowID) : .item(item)
         })
@@ -134,7 +147,12 @@ public struct MenuBarLayout: Sendable, Equatable {
     /// copies of its windows. Barbarian's three windows, owned by
     /// `barbarianPID`, are left to right the Always Hidden divider, the Hidden
     /// divider and the icon.
-    public init?(items: [MenuBarItem], barbarianPID: Int32, statusArea: ClosedRange<CGFloat>) {
+    public init?(
+        items: [MenuBarItem],
+        barbarianPID: Int32,
+        statusArea: ClosedRange<CGFloat>,
+        itemsWithoutAccessibilityElement: ([MenuBarItem]) -> Set<WindowID> = { _ in [] }
+    ) {
         let barbarianWindows = items
             .filter { $0.ownerPID == barbarianPID }
             .sorted { $0.frame.minX < $1.frame.minX }
@@ -143,7 +161,8 @@ public struct MenuBarLayout: Sendable, Equatable {
         self.init(
             items: items,
             controls: ControlItemIDs(icon: barbarianWindows[2], hiddenDivider: barbarianWindows[1], alwaysHiddenDivider: barbarianWindows[0]),
-            statusArea: statusArea
+            statusArea: statusArea,
+            itemsWithoutAccessibilityElement: itemsWithoutAccessibilityElement
         )
     }
 

@@ -33,6 +33,8 @@ Checked in the same VM on 2026-10-29 with Now Playing, which macOS draws only wh
 
 Camera and Mic, checked on a real Mac on 2026-11-01: dragged elsewhere while showing, it went back to the left of the visible items. Control Center saves a position for Now Playing, Focus, Wi-Fi and its other items, and none for Camera and Mic. The Arrange panel does not let you drag it.
 
+Control Center's Accessibility elements, read on a real Mac on 2026-11-01: it reported elements for the Clock, Control Center and Wi-Fi, which it was drawing, and none for Camera and Mic, Sound, Now Playing or Focus, which it was not. Every other app reported an element for each of its items, including those hidden by a collapsed section.
+
 ## Built, not yet verified
 
 - The Arrange panel's motion: opening without items sliding, the frozen width during a drag, the haptic tick and the hold after a drop until the menu bar matches.
