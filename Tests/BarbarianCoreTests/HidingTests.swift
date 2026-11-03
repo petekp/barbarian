@@ -22,8 +22,8 @@ import Testing
     let policy = AutoRehidePolicy(delay: 4)
     let left = Date(timeIntervalSince1970: 1_000)
 
-    #expect(!policy.shouldRehide(now: left.addingTimeInterval(3), pointerLastInMenuBarAt: left, isMenuOpen: false, isPinnedOpen: false))
-    #expect(policy.shouldRehide(now: left.addingTimeInterval(4), pointerLastInMenuBarAt: left, isMenuOpen: false, isPinnedOpen: false))
+    #expect(!policy.shouldRehide(now: left.addingTimeInterval(3), menuBarLastInUseAt: left, isMenuOpen: false, isPinnedOpen: false))
+    #expect(policy.shouldRehide(now: left.addingTimeInterval(4), menuBarLastInUseAt: left, isMenuOpen: false, isPinnedOpen: false))
 }
 
 @Test func revealedItemsStayWhileAMenuIsOpenOrTheArrangePanelPinsThem() {
@@ -31,6 +31,6 @@ import Testing
     let left = Date(timeIntervalSince1970: 1_000)
     let later = left.addingTimeInterval(60)
 
-    #expect(!policy.shouldRehide(now: later, pointerLastInMenuBarAt: left, isMenuOpen: true, isPinnedOpen: false))
-    #expect(!policy.shouldRehide(now: later, pointerLastInMenuBarAt: left, isMenuOpen: false, isPinnedOpen: true))
+    #expect(!policy.shouldRehide(now: later, menuBarLastInUseAt: left, isMenuOpen: true, isPinnedOpen: false))
+    #expect(!policy.shouldRehide(now: later, menuBarLastInUseAt: left, isMenuOpen: false, isPinnedOpen: true))
 }

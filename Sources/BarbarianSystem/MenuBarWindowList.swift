@@ -35,6 +35,25 @@ public enum MenuBarWindowList {
         })
     }
 
+    /// The frontmost on-screen window at `point`, in global coordinates with
+    /// the origin at the top left of the main display: its owner and level.
+    public static func topWindow(at point: CGPoint) -> (ownerPID: Int32, layer: Int)? {
+        guard let infos = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] else {
+            return nil
+        }
+        for info in infos {
+            guard
+                let bounds = info[kCGWindowBounds as String] as? NSDictionary,
+                let frame = CGRect(dictionaryRepresentation: bounds),
+                frame.contains(point),
+                let pid = info[kCGWindowOwnerPID as String] as? Int32,
+                let layer = info[kCGWindowLayer as String] as? Int
+            else { continue }
+            return (pid, layer)
+        }
+        return nil
+    }
+
     private static let statusItemLayer = Int(CGWindowLevelForKey(.statusWindow))
     private static let maximumItemHeight: CGFloat = 60
 

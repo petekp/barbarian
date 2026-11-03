@@ -28,6 +28,7 @@ Checked in a Tart VM on macOS 15.7.7 with Accessibility, on 2026-10-28, with a d
 - Control-Option-Command-B toggles Hidden.
 - The Arrange panel opens at the top right with the rest of the screen dimmed. Dragging an item to another section and back, and dragging a divider, moved the real items, checked with `--print-items`. Escape, the close button and a click on the dimmed area each close it.
 - Check for Updates… is in the items menu and disabled in a debug build.
+- Choosing an item in a revealed item's menu, checked on 2026-11-02 with a test app in Always Hidden: the choice went through, the items stayed revealed, and they hid 4 seconds after the menu closed. A click on the desktop still hid them at once.
 
 Checked in the same VM on 2026-10-29 with Now Playing, which macOS draws only while something plays. The same posted Command-drag Barbarian uses moved Now Playing while it was drawn, and macOS saved the new position. Posted while it was not drawn, the drag changed the frame the window list reports, but macOS kept the saved position, and Now Playing came back in its old place when playback resumed. So an item that is not drawn cannot be moved, and its frame changing does not show a move landed. The Arrange panel leaves such items out.
 

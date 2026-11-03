@@ -7,7 +7,7 @@ import Sparkle
 final class AppController: NSObject, NSApplicationDelegate {
     private var controlItems: ControlItems!
     private(set) var state: HidingState = .showingShownOnly
-    private var pointerLastInMenuBarAt = Date()
+    private var menuBarLastInUseAt = Date()
     private var hoverStartedAt: Date?
     private var pollTimer: Timer?
     private var mouseDownMonitor: Any?
@@ -100,7 +100,7 @@ final class AppController: NSObject, NSApplicationDelegate {
 
     func setState(_ newState: HidingState) {
         if newState != .showingShownOnly && state == .showingShownOnly {
-            pointerLastInMenuBarAt = Date()
+            menuBarLastInUseAt = Date()
         }
         let revealsMore = newState.revealsMore(than: state)
         state = newState
@@ -175,9 +175,21 @@ final class AppController: NSObject, NSApplicationDelegate {
         statusMessage.show(text, below: button)
     }
 
+    /// Hides revealed items on a click outside the menu bar, unless the
+    /// click is on a menu, popover or panel of an app that has an item there.
     private func clickedOutsideBarbarian() {
-        guard state != .showingShownOnly, !isPinnedOpen, !Self.isInMenuBar(MenuBarDisplay.pointerLocation) else { return }
+        let pointer = MenuBarDisplay.pointerLocation
+        guard state != .showingShownOnly, !isPinnedOpen, !Self.isInMenuBar(pointer), !Self.isOnMenuBarItemsWindow(pointer) else { return }
         setState(.showingShownOnly)
+    }
+
+    /// Whether the window at `point` floats above normal windows and belongs
+    /// to an app with an item in a menu bar, as an item's menu does.
+    private static func isOnMenuBarItemsWindow(_ point: CGPoint) -> Bool {
+        guard let window = MenuBarWindowList.topWindow(at: point), window.layer > Int(CGWindowLevelForKey(.normalWindow)) else {
+            return false
+        }
+        return MenuBarWindowList.allWindows().contains { $0.ownerPID == window.ownerPID }
     }
 
     // MARK: Polling the pointer
@@ -192,7 +204,8 @@ final class AppController: NSObject, NSApplicationDelegate {
     private func poll() {
         let now = Date()
         let pointer = MenuBarDisplay.pointerLocation
-        if Self.isInMenuBar(pointer) { pointerLastInMenuBarAt = now }
+        let isMenuOpen = !MenuBarWindowList.openMenuOwners().isEmpty
+        if Self.isInMenuBar(pointer) || isMenuOpen { menuBarLastInUseAt = now }
 
         if state == .showingShownOnly {
             revealIfHovering(pointer: pointer, now: now)
@@ -202,8 +215,8 @@ final class AppController: NSObject, NSApplicationDelegate {
         let rehidePolicy = AutoRehidePolicy(delay: Preferences.shared.rehideDelay)
         let shouldRehide = rehidePolicy.shouldRehide(
             now: now,
-            pointerLastInMenuBarAt: pointerLastInMenuBarAt,
-            isMenuOpen: !MenuBarWindowList.openMenuOwners().isEmpty,
+            menuBarLastInUseAt: menuBarLastInUseAt,
+            isMenuOpen: isMenuOpen,
             isPinnedOpen: isPinnedOpen
         )
         if shouldRehide { setState(.showingShownOnly) }

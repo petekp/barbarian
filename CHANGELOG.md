@@ -5,6 +5,7 @@
 - The camera and microphone indicator is named "Camera and Mic", so its name fits.
 - Arrange leaves out items macOS is not showing right now, such as Now Playing while nothing plays. They can't be moved until they appear, and then they can be dragged like any other item.
 - Camera and Mic can't be dragged in Arrange. macOS always puts it left of the other items.
+- Choosing something in a hidden item's menu no longer hides the items at once. They hide after your delay, counted from when the menu closes.
 
 ## 0.1.0
 
